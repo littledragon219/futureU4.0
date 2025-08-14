@@ -46,6 +46,7 @@ export default function LandingPage() {
       const {
         data: { subscription },
       } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log("Auth state changed:", event, session?.user?.email)
         if (session?.user) {
           setUser({ id: session.user.id, email: session.user.email || "" })
         } else {
@@ -58,6 +59,7 @@ export default function LandingPage() {
     } catch (error) {
       // 忽略认证监听错误
       console.log("Auth listener setup failed, continuing with anonymous access")
+      setIsLoading(false)
     }
   }, [])
 
@@ -137,7 +139,13 @@ export default function LandingPage() {
 
   const handleLogin = async (email: string, password: string) => {
     try {
-      await signIn(email, password)
+      const result = await signIn(email, password)
+      console.log("Login result:", result)
+      // 手动检查用户状态
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUser({ id: user.id, email: user.email || "" })
+      }
     } catch (error: any) {
       throw new Error(error.message || "登录失败，请重试")
     }
@@ -145,7 +153,13 @@ export default function LandingPage() {
 
   const handleRegister = async (email: string, password: string, confirmPassword: string) => {
     try {
-      await signUp(email, password)
+      const result = await signUp(email, password)
+      console.log("Register result:", result)
+      // 手动检查用户状态
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUser({ id: user.id, email: user.email || "" })
+      }
     } catch (error: any) {
       throw new Error(error.message || "注册失败，请重试")
     }
