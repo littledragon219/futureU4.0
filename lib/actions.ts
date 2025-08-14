@@ -17,10 +17,15 @@ export async function signIn(prevState: any, formData: FormData) {
     return { error: "邮箱和密码为必填项" }
   }
 
-  const cookieStore = await cookies()
+  // 检查环境变量是否配置
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  if (!supabaseUrl || !supabaseKey) {
+    return { error: "Supabase配置缺失，请联系管理员配置环境变量" }
+  }
+
+  const cookieStore = await cookies()
 
   const supabase = createSupabaseClient(supabaseUrl, supabaseKey, {
     cookies: {
@@ -69,10 +74,15 @@ export async function signUp(prevState: any, formData: FormData) {
     return { error: "邮箱和密码为必填项" }
   }
 
-  const cookieStore = await cookies()
+  // 检查环境变量是否配置
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  if (!supabaseUrl || !supabaseKey) {
+    return { error: "Supabase配置缺失，请联系管理员配置环境变量" }
+  }
+
+  const cookieStore = await cookies()
 
   const supabase = createSupabaseClient(supabaseUrl, supabaseKey, {
     cookies: {
@@ -131,10 +141,17 @@ export async function signUp(prevState: any, formData: FormData) {
 
 // 登出操作
 export async function signOut() {
-  const cookieStore = await cookies()
+  // 检查环境变量是否配置
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  if (!supabaseUrl || !supabaseKey) {
+    console.warn("Supabase配置缺失，无法执行登出操作")
+    redirect('/')
+    return
+  }
+
+  const cookieStore = await cookies()
 
   const supabase = createSupabaseClient(supabaseUrl, supabaseKey, {
     cookies: {

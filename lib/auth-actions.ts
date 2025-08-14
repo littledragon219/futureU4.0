@@ -4,10 +4,15 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 
 export async function signIn(email: string, password: string) {
-  const cookieStore = await cookies()
+  // 检查环境变量是否配置
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Supabase配置缺失，请联系管理员配置环境变量")
+  }
+
+  const cookieStore = await cookies()
 
   const supabase = createSupabaseClient(supabaseUrl, supabaseKey, {
     cookies: {
@@ -39,10 +44,15 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signUp(email: string, password: string) {
-  const cookieStore = await cookies()
+  // 检查环境变量是否配置
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Supabase配置缺失，请联系管理员配置环境变量")
+  }
+
+  const cookieStore = await cookies()
 
   const supabase = createSupabaseClient(supabaseUrl, supabaseKey, {
     cookies: {
@@ -79,10 +89,15 @@ export async function signUp(email: string, password: string) {
 }
 
 export async function signOut() {
-  const cookieStore = await cookies()
+  // 检查环境变量是否配置
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Supabase配置缺失，请联系管理员配置环境变量")
+  }
+
+  const cookieStore = await cookies()
 
   const supabase = createSupabaseClient(supabaseUrl, supabaseKey, {
     cookies: {
@@ -109,10 +124,15 @@ export async function signOut() {
 }
 
 export async function resetPassword(email: string) {
-  const cookieStore = await cookies()
+  // 检查环境变量是否配置
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Supabase配置缺失，请联系管理员配置环境变量")
+  }
+
+  const cookieStore = await cookies()
 
   const supabase = createSupabaseClient(supabaseUrl, supabaseKey, {
     cookies: {
