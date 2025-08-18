@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { Slider } from "@/components/ui/slider"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   ArrowLeft,
   Clock,
@@ -21,9 +23,58 @@ import {
   Trophy,
   RefreshCw,
   Loader2,
+  Mic,
+  Volume2,
+  VolumeX,
+  Pause,
+  RotateCcw,
+  Settings,
 } from "lucide-react"
 import { getRandomQuestions, getQuestionCount, type Question, getQuestionStats } from "@/lib/questions-service"
 
+// TypeScript类型定义
+declare global {
+  interface SpeechRecognitionEvent extends Event {
+    results: SpeechRecognitionResultList
+  }
+
+  interface SpeechRecognitionResultList {
+    length: number
+    [index: number]: SpeechRecognitionResult
+  }
+
+  interface SpeechRecognitionResult {
+    isFinal: boolean
+    [index: number]: SpeechRecognitionAlternative
+  }
+
+  interface SpeechRecognitionAlternative {
+    transcript: string
+    confidence: number
+  }
+
+  interface SpeechRecognitionErrorEvent extends Event {
+    error: string
+  }
+
+  interface SpeechRecognition extends EventTarget {
+    continuous: boolean
+    interimResults: boolean
+    lang: string
+    onresult: (event: SpeechRecognitionEvent) => void
+    onerror: (event: SpeechRecognitionErrorEvent) => void
+    onend: () => void
+    start: () => void
+    stop: () => void
+  }
+
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognition
+    webkitSpeechRecognition: new () => SpeechRecognition
+  }
+}
+
+// 阶段配置
 const stageConfig = {
   hr: {
     title: "HR面 - 职业匹配度与潜力评估",
@@ -48,115 +99,7 @@ const stageConfig = {
   },
 }
 
-const abilityDimensions = {
-  hr: [
-    {
-      name: "职业动机真实性",
-      weight: "高",
-      description:
-        "对AI PM岗位的理解是否深入，动机是否源于热爱而非盲从。评估你是否真正理解AI产品经理与传统PM的本质区别。",
-      standards: [
-        "优秀：能清晰阐述AI PM与传统PM的本质区别，结合具体案例说明职业选择的必然性，展现对AI产品的深度认知",
-        "良好：理解AI PM的基本职责，但对独特价值的认知还不够深入，缺乏具体的差异化表达",
-        "待提升：对AI PM角色认知模糊，缺乏具体的职业规划和动机支撑，容易与传统PM混淆",
-      ],
-      evaluationFocus: "重点关注：是否能用'数据-模型-业务'闭环思维来解释职业选择，是否提到AI产品的概率性决策特点",
-    },
-    {
-      name: "自我认知清晰度",
-      weight: "高",
-      description: "对自身优势、劣势和未来发展路径是否有清晰规划。评估你的自我反思能力和成长规划的可执行性。",
-      standards: [
-        "优秀：能客观分析自身能力模型，提出具体可验证的成长计划，有明确的里程碑和评估标准",
-        "良好：有基本的自我认知，但成长规划还不够具体，缺乏量化的目标设定",
-        "待提升：自我认知不够客观，缺乏明确的发展方向，规划过于宏观缺乏可操作性",
-      ],
-      evaluationFocus: "重点关注：是否有具体的技能提升计划，是否能识别AI PM特有的能力要求",
-    },
-    {
-      name: "团队协作软实力",
-      weight: "高",
-      description: "能否在复杂团队环境中有效沟通和解决冲突。特别关注与技术团队（算法、工程）的协作能力。",
-      standards: [
-        "优秀：能用具体案例展示跨职能协作能力，有成熟的冲突解决方法论，特别是技术与业务的平衡",
-        "良好：有团队协作经验，但处理复杂冲突的能力还需提升，缺乏系统性的协调方法",
-        "待提升：团队协作经验有限，缺乏系统性的沟通协调方法，对技术团队协作理解不足",
-      ],
-      evaluationFocus: "重点关注：是否有与数据科学家、算法工程师协作的具体经验和方法论",
-    },
-  ],
-  professional: [
-    {
-      name: "技术理解深度",
-      weight: "高",
-      description: "能否清晰解释AI技术原理，并与产品场景结合。不要求成为技术专家，但需要有足够的技术判断力。",
-      standards: [
-        "优秀：能深入解释技术原理，并结合具体产品场景进行权衡分析，有独立的技术选型判断能力",
-        "良好：理解基本技术概念，但在产品化应用方面还需加强，技术判断依赖他人意见",
-        "待提升：技术理解停留在表面，缺乏产品化思维，无法独立进行技术方案评估",
-      ],
-      evaluationFocus: "重点关注：是否能解释RAG vs 微调的适用场景，是否理解模型部署的成本考量",
-    },
-    {
-      name: "产品落地能力",
-      weight: "高",
-      description: "是否能设计出可行的AI产品方案，并考虑数据飞轮。评估从0到1的产品设计能力。",
-      standards: [
-        "优秀：能设计完整的AI产品方案，深度考虑数据获取和增长飞轮，有清晰的MVP规划",
-        "良好：有基本的产品设计能力，但对数据驱动增长的理解还不够深入，缺乏系统性思考",
-        "待提升：产品设计思路不够系统，缺乏数据驱动的产品思维，对AI产品特性理解不足",
-      ],
-      evaluationFocus: "重点关注：是否考虑冷启动问题，是否设计了用户反馈闭环，是否有数据质量保障机制",
-    },
-    {
-      name: "商业化平衡能力",
-      weight: "高",
-      description: "在追求技术效果的同时，能否兼顾成本、收益和用户价值。这是AI PM的核心能力之一。",
-      standards: [
-        "优秀：能在技术理想与商业现实间找到最佳平衡点，有成熟的权衡方法论和量化分析能力",
-        "良好：理解商业化的重要性，但在具体权衡时还需要更多经验，缺乏量化分析工具",
-        "待提升：过于关注技术实现，对商业化考量不够充分，缺乏成本效益分析思维",
-      ],
-      evaluationFocus: "重点关注：是否能量化技术投入与商业回报，是否考虑了模型维护成本",
-    },
-  ],
-  final: [
-    {
-      name: "行业洞察力",
-      weight: "高",
-      description: "对AI行业趋势有前瞻性见解，能预判技术发展方向。不是要求预测未来，而是基于现状的合理推演。",
-      standards: [
-        "优秀：对AI前沿技术有深度洞察，能结合商业场景预判发展趋势，有独特的行业观点",
-        "良好：关注行业动态，但洞察深度和前瞻性还需提升，观点缺乏独特性",
-        "待提升：对行业趋势的理解较为表面，缺乏独特见解，容易人云亦云",
-      ],
-      evaluationFocus: "重点关注：是否能分析AI Agent的商业化瓶颈，是否理解多模态技术的应用前景",
-    },
-    {
-      name: "战略规划能力",
-      weight: "高",
-      description: "能从宏观层面思考产品，并设计可行的商业模式。评估你的系统性思维和商业敏感度。",
-      standards: [
-        "优秀：能制定系统性的产品战略，设计可持续的商业模式，有清晰的竞争策略",
-        "良好：有基本的战略思维，但在商业模式设计方面还需加强，缺乏竞争分析",
-        "待提升：战略思维不够系统，缺乏宏观视角，商业模式设计能力不足",
-      ],
-      evaluationFocus: "重点关注：是否考虑了不同客户群体的定价策略，是否分析了竞争环境",
-    },
-    {
-      name: "复杂问题拆解能力",
-      weight: "高",
-      description: "面对开放性难题，能结构化地分析和解决。这是高级PM必备的思维能力。",
-      standards: [
-        "优秀：能nsystem拆解复杂问题，提供结构化的解决方案，有清晰的优先级排序",
-        "良好：有一定的问题分析能力，但结构化思维还需提升，解决方案不够系统",
-        "待提升：面对复杂问题时思路不够清晰，缺乏系统性方法，容易陷入细节",
-      ],
-      evaluationFocus: "重点关注：是否使用了结构化分析框架，是否考虑了多个利益相关方的需求",
-    },
-  ],
-}
-
+// 组件接口定义
 interface InterviewPracticeProps {
   moduleType: "hr" | "professional" | "final"
   onBack: () => void
@@ -182,13 +125,14 @@ interface QualitativeEvaluationResponse {
 }
 
 export default function InterviewPractice({ moduleType = "hr", onBack }: InterviewPracticeProps) {
+  // 状态管理
   const [currentStep, setCurrentStep] = useState<"overview" | "answering" | "analyzing" | "result">("overview")
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [answers, setAnswers] = useState<string[]>([])
   const [currentAnswer, setCurrentAnswer] = useState("")
   const [timeLeft, setTimeLeft] = useState(0)
   const [feedback, setFeedback] = useState<QualitativeEvaluationResponse | null>(null)
-const [history, setHistory] = useState<QualitativeEvaluationResponse[]>([])
+  const [history, setHistory] = useState<QualitativeEvaluationResponse[]>([])
   const [evaluationError, setEvaluationError] = useState<string | null>(null)
   const [stageProgress, setStageProgress] = useState(0)
   const [isEvaluating, setIsEvaluating] = useState(false)
@@ -199,10 +143,29 @@ const [history, setHistory] = useState<QualitativeEvaluationResponse[]>([])
     totalQuestions: 0,
     questionsByStage: [],
   })
+  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null)
+  const [isRecording, setIsRecording] = useState(false)
+  const [speechError, setSpeechError] = useState<string | null>(null)
+  const [isPaused, setIsPaused] = useState(false)
+  const [interimTranscript, setInterimTranscript] = useState("")
+  const [finalTranscript, setFinalTranscript] = useState("")
+  const [audioLevel, setAudioLevel] = useState(0)
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null)
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null)
+  
+  // 语音合成状态
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [speechRate, setSpeechRate] = useState(1.0)
+  const [speechVolume, setSpeechVolume] = useState(0.8)
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
+  const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null)
+  const [speechProgress, setSpeechProgress] = useState(0)
+  const [showSpeechSettings, setShowSpeechSettings] = useState(false)
 
   const currentStage = stageConfig[moduleType]
   const IconComponent = currentStage.icon
 
+  // 加载题目
   const loadQuestions = async () => {
     setIsLoadingQuestions(true)
     try {
@@ -225,7 +188,6 @@ const [history, setHistory] = useState<QualitativeEvaluationResponse[]>([])
       setQuestions(fetchedQuestions)
       setTotalQuestionsInStage(totalCount)
 
-      // 同时获取题库统计信息
       const stats = await getQuestionStats()
       setQuestionStats(stats)
       console.log(`📊 [前端] 题库统计:`, stats)
@@ -238,15 +200,220 @@ const [history, setHistory] = useState<QualitativeEvaluationResponse[]>([])
     }
   }
 
+  // 语音识别初始化
   useEffect(() => {
-  loadQuestions()
-  // 加载历史记录
-  const savedHistory = localStorage.getItem(`interviewHistory_${moduleType}`)
-  if (savedHistory) {
-    setHistory(JSON.parse(savedHistory))
-  }
-}, [moduleType])
+    if (typeof window !== 'undefined') {
+      console.log('🎤 检查语音识别支持...')
+      const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition
+      
+      if (SpeechRecognitionConstructor) {
+        console.log('✅ 浏览器支持语音识别')
+        try {
+          const recog = new SpeechRecognitionConstructor() as SpeechRecognition
+          // 优化配置
+          recog.continuous = true  // 启用连续识别
+          recog.interimResults = true  // 启用中间结果
+          recog.lang = 'zh-CN'
+          recog.maxAlternatives = 1  // 只返回最佳结果
+          
+          recog.onstart = () => {
+            console.log('🎤 语音识别已启动')
+            setIsRecording(true)
+            setSpeechError(null)
+          }
+          
+          recog.onresult = (event: SpeechRecognitionEvent) => {
+            console.log('🎤 收到语音识别结果:', event.results)
+            
+            let interim = ""
+            let final = ""
+            
+            // 处理所有结果
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const transcript = event.results[i][0].transcript
+              
+              if (event.results[i].isFinal) {
+                // 处理最终结果，添加智能标点
+                final += addSmartPunctuation(transcript)
+                console.log('🎤 最终识别文本:', final)
+              } else {
+                // 处理中间结果
+                interim += transcript
+              }
+            }
+            
+            setInterimTranscript(interim)
+            
+            if (final) {
+              setFinalTranscript(prev => prev + final)
+              setCurrentAnswer(prev => {
+                const newAnswer = prev + final
+                return newAnswer
+              })
+              
+              // 清空中间结果
+              setInterimTranscript("")
+            }
+          }
+          
+          recog.onerror = (event: SpeechRecognitionErrorEvent) => {
+            console.error('🎤 语音识别错误:', event.error, event)
+            
+            // 根据错误类型提供不同的提示
+            let errorMessage = '语音识别出现问题'
+            let shouldRestart = false
+            
+            switch (event.error) {
+              case 'network':
+                errorMessage = '网络连接问题，语音识别需要网络支持。请检查网络连接。'
+                shouldRestart = true
+                break
+              case 'not-allowed':
+                errorMessage = '请允许麦克风权限以使用语音输入。点击浏览器地址栏的麦克风图标允许权限。'
+                setIsRecording(false)
+                break
+              case 'no-speech':
+                errorMessage = '未检测到语音，继续监听中...'
+                shouldRestart = true
+                break
+              case 'audio-capture':
+                errorMessage = '麦克风无法访问，请检查设备连接'
+                setIsRecording(false)
+                break
+              case 'service-not-allowed':
+                errorMessage = '语音识别服务不可用，请使用键盘输入'
+                setIsRecording(false)
+                break
+              case 'aborted':
+                // 用户主动停止，不显示错误
+                return
+              default:
+                errorMessage = `语音识别错误: ${event.error}`
+                setIsRecording(false)
+            }
+            
+            setSpeechError(errorMessage)
+            
+            // 对于某些错误，尝试自动重启
+            if (shouldRestart && isRecording && !isPaused) {
+              setTimeout(() => {
+                try {
+                  recog.start()
+                  setSpeechError(null)
+                } catch (restartError) {
+                  console.error('❌ 自动重启失败:', restartError)
+                }
+              }, 1000)
+            } else {
+              // 3秒后清除错误信息（除非是权限错误）
+              if (event.error !== 'not-allowed') {
+                setTimeout(() => setSpeechError(null), 3000)
+              }
+            }
+          }
+          
+          recog.onend = () => {
+            console.log('🎤 语音识别已结束')
+            
+            // 如果还在录音状态且未暂停，自动重启
+            if (isRecording && !isPaused) {
+              console.log('🎤 自动重启语音识别...')
+              setTimeout(() => {
+                try {
+                  recog.start()
+                } catch (error) {
+                  console.error('❌ 自动重启失败:', error)
+                  setIsRecording(false)
+                }
+              }, 100)
+            } else {
+              setIsRecording(false)
+            }
+          }
+          
+          setRecognition(recog)
+          console.log('✅ 语音识别初始化完成')
+        } catch (error) {
+          console.error('❌ 语音识别初始化失败:', error)
+          setSpeechError('语音识别初始化失败，请使用键盘输入')
+        }
+      } else {
+        console.warn('❌ 浏览器不支持语音识别')
+        setSpeechError('当前浏览器不支持语音识别，请使用键盘输入')
+      }
+    }
+  }, [])
 
+  // 语音合成初始化
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      console.log('🔊 初始化语音合成...')
+      
+      // 获取可用语音列表
+      const loadVoices = () => {
+        const voices = window.speechSynthesis.getVoices()
+        console.log('🔊 可用语音:', voices.map(v => ({ name: v.name, lang: v.lang })))
+        
+        // 筛选中文语音
+        const chineseVoices = voices.filter(voice => 
+          voice.lang.includes('zh') || voice.lang.includes('CN')
+        )
+        
+        setAvailableVoices(chineseVoices.length > 0 ? chineseVoices : voices)
+        
+        // 自动选择最佳中文语音
+        const bestVoice = chineseVoices.find(voice => 
+          voice.name.includes('Microsoft') || voice.name.includes('Google')
+        ) || chineseVoices[0] || voices[0]
+        
+        if (bestVoice) {
+          setSelectedVoice(bestVoice)
+          console.log('🔊 选择语音:', bestVoice.name)
+        }
+      }
+      
+      // 语音列表可能需要异步加载
+      if (window.speechSynthesis.getVoices().length > 0) {
+        loadVoices()
+      } else {
+        window.speechSynthesis.onvoiceschanged = loadVoices
+      }
+    } else {
+      console.warn('❌ 浏览器不支持语音合成')
+    }
+  }, [])
+
+  // 智能标点符号添加
+  const addSmartPunctuation = (text: string): string => {
+    if (!text) return text
+    
+    let result = text.trim()
+    
+    // 如果文本不以标点符号结尾，根据语调添加标点
+    if (!/[。！？，、；：]$/.test(result)) {
+      // 检查是否是疑问句
+      if (/^(什么|怎么|为什么|哪里|哪个|如何|是否|能否|可以|会不会)/.test(result) || 
+          /吗$/.test(result)) {
+        result += '？'
+      } else {
+        result += '。'
+      }
+    }
+    
+    // 添加适当的空格
+    return ' ' + result
+  }
+
+  // 加载题目和历史记录
+  useEffect(() => {
+    loadQuestions()
+    const savedHistory = localStorage.getItem(`interviewHistory_${moduleType}`)
+    if (savedHistory) {
+      setHistory(JSON.parse(savedHistory))
+    }
+  }, [moduleType])
+
+  // 计时器
   useEffect(() => {
     let interval: NodeJS.Timeout
     if (currentStep === "answering" && timeLeft > 0) {
@@ -254,15 +421,22 @@ const [history, setHistory] = useState<QualitativeEvaluationResponse[]>([])
         setTimeLeft((prev) => prev - 1)
       }, 1000)
     }
-    return () => clearInterval(interval)
+
+    return () => {
+      if (interval) clearInterval(interval)
+    }
   }, [currentStep, timeLeft])
 
+
+
+  // 格式化时间
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, "0")}`
   }
 
+  // 开始练习
   const startPractice = () => {
     if (questions.length === 0) {
       console.warn("⚠️ [前端] 没有可用题目，重新加载")
@@ -281,6 +455,7 @@ const [history, setHistory] = useState<QualitativeEvaluationResponse[]>([])
     console.log("🔄 [前端] 开始阶段练习:", currentStage.title, `共${questions.length}道题`)
   }
 
+  // 提交当前答案
   const submitCurrentAnswer = () => {
     if (!currentAnswer.trim()) return
 
@@ -290,17 +465,16 @@ const [history, setHistory] = useState<QualitativeEvaluationResponse[]>([])
     setStageProgress(((currentQuestionIndex + 1) / questions.length) * 100)
 
     if (currentQuestionIndex < questions.length - 1) {
-      // 继续下一题
       setCurrentQuestionIndex((prev) => prev + 1)
       setTimeLeft(300)
       console.log(`➡️ [前端] 进入第 ${currentQuestionIndex + 2} 题`)
     } else {
-      // 完成所有题目，开始分析
       console.log(`✅ [前端] 完成所有 ${questions.length} 道题目，开始评估`)
       submitAllAnswers(newAnswers)
     }
   }
 
+  // 提交所有答案进行评估
   const submitAllAnswers = async (allAnswers: string[]) => {
     console.log("🎯 [前端] 提交阶段答案:", {
       stage: moduleType,
@@ -325,7 +499,7 @@ const [history, setHistory] = useState<QualitativeEvaluationResponse[]>([])
         questions: questions.map((q) => q.question_text),
         answers: allAnswers,
         stageTitle: currentStage.title,
-        async: false, // 同步模式
+        async: false,
       }
 
       console.log("📤 [前端] 发送评估请求:", requestData)
@@ -349,11 +523,10 @@ const [history, setHistory] = useState<QualitativeEvaluationResponse[]>([])
       if (responseData.performanceLevel) {
         const evaluationResult: QualitativeEvaluationResponse = responseData
         setFeedback(evaluationResult)
-setCurrentStep("result")
-// 保存到历史
-const newHistory = [...history, evaluationResult]
-setHistory(newHistory)
-localStorage.setItem(`interviewHistory_${moduleType}`, JSON.stringify(newHistory))
+        setCurrentStep("result")
+        const newHistory = [...history, evaluationResult]
+        setHistory(newHistory)
+        localStorage.setItem(`interviewHistory_${moduleType}`, JSON.stringify(newHistory))
         console.log("✅ [前端] 评估完成:", evaluationResult.performanceLevel)
       } else {
         throw new Error("评估结果格式错误")
@@ -365,133 +538,254 @@ localStorage.setItem(`interviewHistory_${moduleType}`, JSON.stringify(newHistory
 
       const fallbackResult = generateFallbackEvaluation()
       setFeedback(fallbackResult)
-setCurrentStep("result")
-// 保存到历史
-const newHistory = [...history, fallbackResult]
-setHistory(newHistory)
-localStorage.setItem(`interviewHistory_${moduleType}`, JSON.stringify(newHistory))
+      setCurrentStep("result")
+      const newHistory = [...history, fallbackResult]
+      setHistory(newHistory)
+      localStorage.setItem(`interviewHistory_${moduleType}`, JSON.stringify(newHistory))
       console.log("🔄 [前端] 使用备用评估结果")
     } finally {
       setIsEvaluating(false)
     }
   }
 
+  // 生成备用评估结果
   const generateFallbackEvaluation = (): QualitativeEvaluationResponse => {
-    const stageSpecificFeedback = {
-      hr: {
-        summary:
-          "你的故事很完整，像是一部制作精良的简历纪录片。但听下来，感觉你像是AI产品的'旁白'，而不是'导演'。我们想听听你当导演时的心路历程。",
-        improvements: [
-          {
-            area: "成为'导演'",
-            suggestion:
-              "别只说'我做了什么'，要说'我为什么这么做'。用具体量化的数据证明你是如何通过技术决策，一步步实现商业目标的。",
-            example:
-              "比如说'将问题解决率从68%提升至85%，通过重新设计推荐算法架构实现，这个决策基于我对用户行为数据的深度分析'",
-          },
-          {
-            area: "突出AI PM独特性",
-            suggestion:
-              "你的介绍里要有AI时代的'关键词'：RAG、AI Agent、多模态交互。更重要，要体现AI产品经理特有的思维模式。",
-            example:
-              "比如'在设计推荐系统时，我需要平衡模型精度与用户体验，最终选择了85%精度的轻量模型，因为响应速度对用户留存的影响更大'",
-          },
-          {
-            area: "量化你的影响力",
-            suggestion: "每个项目都要有具体的数据支撑，让面试官看到你的'导演'能力不是空谈。",
-            example:
-              "不要说'优化了用户体验'，要说'通过A/B测试验证，新的AI交互方式使用户完成率提升了23%，月活跃用户增长15%'",
-          },
-        ],
-      },
-      professional: {
-        summary:
-          "你对技术的理解就像是看了一场精彩的球赛，规则都懂，战术也清楚。但我们想知道你作为教练，是如何制定战术、调整阵容的。",
-        improvements: [
-          {
-            area: "技术翻译官",
-            suggestion:
-              "在阐述技术时，将技术名词转化为业务收益，突出你的'教练'角色。不要只展示技术理解，要展示技术判断。",
-            example:
-              "不要只说'使用RAG技术'，要说'选择RAG而非微调，是因为我们的知识库更新频繁，RAG能降低30%的模型维护成本，同时保持85%的准确率'",
-          },
-          {
-            area: "数据飞轮设计师",
-            suggestion: "AI产品的核心是数据驱动增长，你需要展示如何设计这个增长引擎。",
-            example: "比如'用户每次纠错都会成为训练数据，预计3个月后模型准确率可提升到92%，形成越用越准的正向循环'",
-          },
-          {
-            area: "商业化平衡大师",
-            suggestion: "展示你如何在技术理想与商业现实间找平衡，这是AI PM的核心价值。",
-            example: "当数据科学家要求95%精度时，我会分析：从85%到95%需要额外投入50万，但业务收益只增加8%，ROI不划算",
-          },
-        ],
-      },
-      final: {
-        summary:
-          "你对未来的描绘很宏大，就像一位优秀的航海家描述远方的大陆。但我们想知道，这艘'未来之船'的发动机在哪里，航线图是什么样的？",
-        improvements: [
-          {
-            area: "趋势落地专家",
-            suggestion: "在谈论行业趋势时，将其与具体产品形态和商业模式结合，而非泛泛而谈。要有自己的独特洞察。",
-            example:
-              "不要只说'AI Agent很有前景'，要说'AI Agent在客服场景下可以降低40%人力成本，但目前的技术瓶颈是多轮对话的上下文理解，预计2年内突破'",
-          },
-          {
-            area: "商业模式建筑师",
-            suggestion: "设计商业模式时，要考虑不同客户群体的需求差异和支付能力，展示你的商业敏感度。",
-            example:
-              "中小企业按使用量付费（$0.1/次调用），大企业按年订阅（$50万/年含定制化），这样既保证了现金流又满足了不同需求",
-          },
-          {
-            area: "复杂问题拆解高手",
-            suggestion: "面对复杂场景，要展示结构化思维，用框架来分析问题，而不是凭直觉。",
-            example:
-              "医疗AI的三个维度可以用'技术-体验-合规'框架分析：技术上追求95%精度，体验上设计医生确认机制，合规上建立审计追踪",
-          },
-        ],
-      },
-    }
-
-    const feedback = stageSpecificFeedback[moduleType]
-
     return {
       performanceLevel: "良好表现",
-      summary: feedback.summary,
+      summary: "你的回答展现了良好的基础素养和学习态度，在表达逻辑和专业认知方面有不错的表现。",
       strengths: [
         {
           area: "表达逻辑",
-          description: "回答结构清晰，能够按照逻辑顺序组织内容，体现了良好的沟通基础。这是成为优秀AI PM的重要基石。",
+          description: "回答结构清晰，能够按照逻辑顺序组织内容，体现了良好的沟通基础。",
         },
         {
           area: "学习态度",
-          description: "对AI产品经理角色有基本认知，展现出学习和成长的积极态度。这种开放的心态很难得。",
-        },
-        {
-          area: "专业素养",
-          description: "在回答中体现出对产品工作的基本理解，有一定的专业基础，这为进一步提升奠定了基础。",
+          description: "对AI产品经理角色有基本认知，展现出学习和成长的积极态度。",
         },
       ],
-      improvements: feedback.improvements,
+      improvements: [
+        {
+          area: "深化理解",
+          suggestion: "建议进一步深化对AI产品经理角色的理解，特别是技术与商业的结合。",
+          example: "可以通过分析具体的AI产品案例来提升认知深度。",
+        },
+      ],
       nextSteps: [
         {
-          focus: "深化AI产品理解",
-          actionable: "每周研读2-3个AI产品的成功案例，特别关注他们如何将技术能力转化为商业价值，建立自己的案例库",
-        },
-        {
-          focus: "建立量化思维",
-          actionable: "在描述任何项目时，都要准备3个关键数据：投入成本、产出效果、时间周期。用数据说话，而不是感觉",
-        },
-        {
-          focus: "实践AI产品设计",
-          actionable: "选择一个你熟悉的产品，设计一个AI功能的完整方案：技术选型、数据获取、用户体验、商业模式",
+          focus: "实践经验",
+          actionable: "建议参与更多AI产品相关的实践项目，积累实战经验。",
         },
       ],
-      encouragement:
-        "记住，每个优秀的AI产品经理都是从'旁白'开始，逐步成长为'导演'的。你已经有了很好的基础，现在需要的是更多的实战经验和深度思考。继续保持这种学习热情，相信你很快就能从观众席走到导演椅！",
+      encouragement: "继续保持学习热情，相信通过不断实践和思考，你会成为优秀的AI产品经理！",
     }
   }
 
+  // 语音识别控制
+  const toggleRecording = async () => {
+    if (!recognition) {
+      setSpeechError('语音识别未初始化，请刷新页面重试')
+      return
+    }
+
+    if (isRecording) {
+      console.log('🎤 停止语音识别')
+      setIsRecording(false)
+      setIsPaused(false)
+      recognition.stop()
+      stopAudioLevelMonitoring()
+      return
+    }
+
+    // 启动语音识别前的检查
+    setSpeechError(null)
+    setIsPaused(false)
+    setInterimTranscript("")
+    setFinalTranscript("")
+    console.log('🎤 准备启动语音识别...')
+    
+    try {
+      // 检查麦克风权限
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          console.log('🎤 检查麦克风权限...')
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+          console.log('✅ 麦克风权限已获取')
+          // 立即停止流，我们只是检查权限
+          stream.getTracks().forEach(track => track.stop())
+        } catch (permissionError) {
+          console.error('❌ 麦克风权限被拒绝:', permissionError)
+          setSpeechError('请允许麦克风权限。点击浏览器地址栏的麦克风图标，选择"允许"。')
+          return
+        }
+      }
+      
+      console.log('🎤 启动语音识别...')
+      recognition.start()
+      setIsRecording(true)
+      startAudioLevelMonitoring()
+      console.log('✅ 语音识别启动成功')
+    } catch (error) {
+      console.error('❌ 启动语音识别失败:', error)
+      setIsRecording(false)
+      
+      if (error.name === 'InvalidStateError') {
+        setSpeechError('语音识别正在运行中，请稍后再试')
+      } else if (error.name === 'NotAllowedError') {
+        setSpeechError('麦克风权限被拒绝，请在浏览器设置中允许麦克风访问')
+      } else {
+        setSpeechError('无法启动语音识别，请检查麦克风设备或使用键盘输入')
+      }
+    }
+  }
+
+  // 暂停/恢复语音识别
+  const togglePause = () => {
+    if (!recognition || !isRecording) return
+    
+    if (isPaused) {
+      console.log('🎤 恢复语音识别')
+      setIsPaused(false)
+      try {
+        recognition.start()
+        startAudioLevelMonitoring()
+      } catch (error) {
+        console.error('❌ 恢复语音识别失败:', error)
+      }
+    } else {
+      console.log('🎤 暂停语音识别')
+      setIsPaused(true)
+      recognition.stop()
+      stopAudioLevelMonitoring()
+    }
+  }
+
+  // 开始音量监测
+  const startAudioLevelMonitoring = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const context = new AudioContext()
+      const analyserNode = context.createAnalyser()
+      const source = context.createMediaStreamSource(stream)
+      
+      analyserNode.fftSize = 256
+      source.connect(analyserNode)
+      
+      setAudioContext(context)
+      setAnalyser(analyserNode)
+      
+      const dataArray = new Uint8Array(analyserNode.frequencyBinCount)
+      
+      const updateAudioLevel = () => {
+        if (analyserNode) {
+          analyserNode.getByteFrequencyData(dataArray)
+          const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length
+          const level = Math.round((average / 255) * 100)
+          setAudioLevel(level)
+          
+          if (isRecording && !isPaused) {
+            requestAnimationFrame(updateAudioLevel)
+          }
+        }
+      }
+      
+      updateAudioLevel()
+    } catch (error) {
+      console.error('❌ 音量监测启动失败:', error)
+    }
+  }
+
+  // 停止音量监测
+  const stopAudioLevelMonitoring = () => {
+    if (audioContext) {
+      audioContext.close()
+      setAudioContext(null)
+      setAnalyser(null)
+      setAudioLevel(0)
+    }
+  }
+
+  // 朗读题目
+  const speakQuestion = () => {
+    if (!window.speechSynthesis || !selectedVoice || !questions[currentQuestionIndex]) {
+      console.warn('❌ 语音合成不可用')
+      return
+    }
+
+    // 停止当前朗读
+    window.speechSynthesis.cancel()
+
+    const questionText = questions[currentQuestionIndex].question_text
+    console.log('🔊 开始朗读题目:', questionText)
+
+    const utterance = new SpeechSynthesisUtterance(questionText)
+    utterance.voice = selectedVoice
+    utterance.rate = speechRate
+    utterance.volume = speechVolume
+    utterance.lang = 'zh-CN'
+
+    utterance.onstart = () => {
+      console.log('🔊 朗读开始')
+      setIsSpeaking(true)
+      setSpeechProgress(0)
+    }
+
+    utterance.onend = () => {
+      console.log('🔊 朗读结束')
+      setIsSpeaking(false)
+      setSpeechProgress(100)
+      
+      // 朗读完成后聚焦到答案输入框
+      setTimeout(() => {
+        const textarea = document.querySelector('textarea[placeholder*="请输入"]') as HTMLTextAreaElement
+        if (textarea) {
+          textarea.focus()
+        }
+      }, 500)
+    }
+
+    utterance.onerror = (event) => {
+      console.error('🔊 朗读错误:', event.error)
+      setIsSpeaking(false)
+      setSpeechProgress(0)
+    }
+
+    // 模拟朗读进度
+    utterance.onboundary = (event) => {
+      if (event.name === 'word') {
+        const progress = Math.min((event.charIndex / questionText.length) * 100, 95)
+        setSpeechProgress(progress)
+      }
+    }
+
+    window.speechSynthesis.speak(utterance)
+  }
+
+  // 停止朗读
+  const stopSpeaking = () => {
+    if (window.speechSynthesis) {
+      console.log('🔊 停止朗读')
+      window.speechSynthesis.cancel()
+      setIsSpeaking(false)
+      setSpeechProgress(0)
+    }
+  }
+
+  // 暂停/恢复朗读
+  const toggleSpeaking = () => {
+    if (!window.speechSynthesis) return
+
+    if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+      console.log('🔊 暂停朗读')
+      window.speechSynthesis.pause()
+    } else if (window.speechSynthesis.paused) {
+      console.log('🔊 恢复朗读')
+      window.speechSynthesis.resume()
+    } else {
+      speakQuestion()
+    }
+  }
+
+  // 重新开始练习
   const restartPractice = () => {
     setCurrentStep("overview")
     setCurrentQuestionIndex(0)
@@ -503,36 +797,74 @@ localStorage.setItem(`interviewHistory_${moduleType}`, JSON.stringify(newHistory
     loadQuestions()
   }
 
+  // 键盘快捷键支持
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // 只在答题阶段响应快捷键
+      if (currentStep !== "answering") return
+      
+      // 检查是否在输入框中
+      const target = event.target as HTMLElement
+      if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') return
+      
+      // Ctrl/Cmd + R: 朗读题目
+      if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
+        event.preventDefault()
+        speakQuestion()
+      }
+      
+      // Ctrl/Cmd + P: 暂停/恢复朗读
+      if ((event.ctrlKey || event.metaKey) && event.key === 'p') {
+        event.preventDefault()
+        if (isSpeaking) {
+          toggleSpeaking()
+        }
+      }
+      
+      // Ctrl/Cmd + S: 停止朗读
+      if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+        event.preventDefault()
+        if (isSpeaking) {
+          stopSpeaking()
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [currentStep, isSpeaking, speakQuestion, toggleSpeaking, stopSpeaking])
+
+  // 加载中状态
   if (isLoadingQuestions) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
-        <Card className="bg-white/80 backdrop-blur-sm border-white/20">
+        <Card className="w-96">
           <CardContent className="p-8 text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">正在加载题库...</h3>
-            <p className="text-gray-600">从数据库中获取最新的面试题目</p>
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+            <h3 className="text-lg font-semibold mb-2">正在加载题目...</h3>
+            <p className="text-gray-600">请稍候，我们正在为您准备{currentStage.title}的题目</p>
           </CardContent>
         </Card>
       </div>
     )
   }
 
+  // 无题目状态
   if (questions.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
-        <Card className="bg-white/80 backdrop-blur-sm border-white/20">
+        <Card className="w-96">
           <CardContent className="p-8 text-center">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Target className="w-8 h-8 text-red-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">暂无可用题目</h3>
+            <Target className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+            <h3 className="text-lg font-semibold mb-2">暂无可用题目</h3>
             <p className="text-gray-600 mb-4">该阶段的题目正在准备中，请稍后再试</p>
             <div className="space-y-2">
-              <Button onClick={loadQuestions} className="mr-2">
-                <RefreshCw className="w-4 h-4 mr-2" />
+              <Button onClick={loadQuestions} className="w-full">
+                <RefreshCw className="h-4 w-4 mr-2" />
                 重新加载
               </Button>
-              <Button variant="outline" onClick={onBack}>
+              <Button variant="outline" onClick={onBack} className="w-full">
+                <ArrowLeft className="h-4 w-4 mr-2" />
                 返回选择
               </Button>
             </div>
@@ -544,924 +876,473 @@ localStorage.setItem(`interviewHistory_${moduleType}`, JSON.stringify(newHistory
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      <div className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-3 sm:px-6 py-2 sm:py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2 sm:space-x-4">
-              <Button
-                variant="ghost"
-                onClick={onBack}
-                className="text-gray-600 hover:text-gray-900 p-1 sm:p-2"
-                size="sm"
-              >
-                <ArrowLeft className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">返回</span>
-              </Button>
-              <div className="h-4 w-px bg-gray-300 hidden sm:block" />
-              <div className="flex items-center space-x-2">
-                <div className="w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-br from-blue-600 to-purple-600 rounded flex items-center justify-center flex-shrink-0">
-                  <span className="text-white font-bold text-xs">F</span>
-                </div>
-                <span className="font-semibold text-gray-900 text-sm sm:text-base">FutureU</span>
-                <IconComponent className="w-4 h-4 text-gray-600 ml-2" />
-                <h1 className="text-sm sm:text-lg font-semibold text-gray-900 truncate">
-                  {currentStage.title.split(" - ")[0]}
-                </h1>
-              </div>
-            </div>
-            {currentStep === "answering" && (
-              <div className="flex items-center space-x-2">
-                <div className="text-xs text-gray-600">
-                  {currentQuestionIndex + 1}/{questions.length}
-                </div>
-                <div className="flex items-center space-x-1">
-                  <Clock className="w-3 h-3 text-orange-500" />
-                  <span className={`font-mono text-sm ${timeLeft < 30 ? "text-red-500" : "text-orange-500"}`}>
-                    {formatTime(timeLeft)}
-                  </span>
-                </div>
-              </div>
-            )}
+      <div className="container mx-auto px-4 py-8">
+        {/* 头部导航 */}
+        <div className="flex items-center justify-between mb-8">
+          <Button variant="ghost" onClick={onBack} className="flex items-center gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            返回模块选择
+          </Button>
+          <div className="flex items-center gap-3">
+            <IconComponent className={`h-6 w-6 text-${currentStage.color}-600`} />
+            <h1 className="text-2xl font-bold text-gray-900">{currentStage.title}</h1>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-4xl mx-auto p-3 sm:p-6">
+        {/* 概览阶段 */}
         {currentStep === "overview" && (
-          <div className="space-y-4 sm:space-y-6">
-            <Card
-              className={`bg-gradient-to-br from-${currentStage.color}-600 via-${currentStage.color}-500 to-purple-600 text-white shadow-2xl border-0`}
-            >
-              <CardContent className="p-4 sm:p-8">
-                <div className="flex flex-col sm:flex-row items-start space-y-3 sm:space-y-0 sm:space-x-6">
-                  <div className="w-10 h-10 sm:w-16 sm:h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg">
-                    <IconComponent className="w-5 h-5 sm:w-8 sm:h-8 text-white" />
-                  </div>
-                  <div className="flex-1 space-y-2 sm:space-y-4">
-                    <h2 className="text-xl sm:text-3xl font-bold text-white">{currentStage.title}</h2>
-                    <p className="text-white/90 text-sm sm:text-lg leading-relaxed">{currentStage.description}</p>
-                    <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-3 sm:mt-6">
-                      <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2 sm:p-3 text-center border border-white/20">
-                        <div className="text-lg sm:text-2xl font-bold text-white">{questions.length}</div>
-                        <div className="text-white/80 text-xs sm:text-sm">随机题目</div>
+          <div className="max-w-4xl mx-auto space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  练习概览
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <h3 className="font-semibold mb-2">本轮评估重点</h3>
+                    <p className="text-gray-600 mb-4">{currentStage.description}</p>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm">每题限时5分钟</span>
                       </div>
-                      <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2 sm:p-3 text-center border border-white/20">
-                        <div className="text-lg sm:text-2xl font-bold text-white">
-                          {Math.ceil(questions.length * 5)}
-                        </div>
-                        <div className="text-white/80 text-xs sm:text-sm">预计分钟</div>
+                      <div className="flex items-center gap-2">
+                        <Brain className="h-4 w-4 text-green-600" />
+                        <span className="text-sm">共{questions.length}道精选题目</span>
                       </div>
-                      <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2 sm:p-3 text-center border border-white/20">
-                        <div className="text-lg sm:text-2xl font-bold text-white">{totalQuestionsInStage}</div>
-                        <div className="text-white/80 text-xs sm:text-sm">题库总数</div>
+                      <div className="flex items-center gap-2">
+                        <Mic className="h-4 w-4 text-purple-600" />
+                        <span className="text-sm">支持语音输入</span>
                       </div>
                     </div>
                   </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">题库统计</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">本阶段题目总数</span>
+                        <Badge variant="secondary">{totalQuestionsInStage}</Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">全库题目总数</span>
+                        <Badge variant="secondary">{questionStats.totalQuestions}</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-6 pt-6 border-t">
+                  <Button onClick={startPractice} size="lg" className="w-full">
+                    <Play className="h-4 w-4 mr-2" />
+                    开始练习
+                  </Button>
                 </div>
               </CardContent>
             </Card>
-
-            <div className="grid gap-3 sm:gap-4">
-              {questions.map((question, index) => (
-                <Card key={question.id} className="bg-white/80 backdrop-blur-sm border-white/20">
-                  <CardContent className="p-3 sm:p-6">
-                    <div className="flex items-start space-x-3">
-                      <div
-                        className={`w-6 h-6 sm:w-8 sm:h-8 bg-${currentStage.color}-100 rounded-full flex items-center justify-center flex-shrink-0`}
-                      >
-                        <span className={`text-${currentStage.color}-600 font-bold text-xs sm:text-sm`}>
-                          {index + 1}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm sm:text-lg font-semibold text-gray-900 mb-2">题目预览 {index + 1}</h3>
-                        <p className="text-xs sm:text-base text-gray-600 mb-3 leading-relaxed">
-                          {question.question_text.length > 100
-                            ? question.question_text.substring(0, 100) + "..."
-                            : question.question_text}
-                        </p>
-                        <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
-                          <p className="text-xs sm:text-sm text-gray-700">
-                            <strong>难度：</strong>
-                            {question.difficulty_level || "中等"}
-                            {question.keywords && question.keywords.length > 0 && (
-                              <>
-                                <strong className="ml-4">关键词：</strong>
-                                {question.keywords.slice(0, 3).join(", ")}
-                              </>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            <div className="text-center">
-              <Button
-                onClick={startPractice}
-                size="lg"
-                className={`bg-gradient-to-r from-${currentStage.color}-600 to-purple-600 hover:from-${currentStage.color}-700 hover:to-purple-700 text-white px-6 sm:px-8 py-3 w-full sm:w-auto text-sm sm:text-base`}
-              >
-                <Play className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                开始{currentStage.title.split(" - ")[0]}练习
-              </Button>
-            </div>
           </div>
         )}
 
-        {currentStep === "answering" && questions[currentQuestionIndex] && (
-          <div className="space-y-4 sm:space-y-6">
-            <Card className="bg-white/80 backdrop-blur-sm border-white/20">
-              <CardHeader className="pb-3 sm:pb-6">
-                <div className="flex items-center justify-between mb-2 sm:mb-4">
-                  <CardTitle className="text-base sm:text-xl text-gray-900">
-                    题目 {currentQuestionIndex + 1}: 面试问题
-                  </CardTitle>
-                  <Badge variant="outline" className="text-xs">
-                    {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
-                  </Badge>
-                </div>
-                <Progress value={stageProgress} className="h-2 sm:h-3" /> // 增强为阶段完成度
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3 sm:space-y-4">
-                  <div className="bg-blue-50 border-l-4 border-blue-500 p-3 sm:p-4 rounded-r-lg">
-                    <p className="text-sm sm:text-base text-gray-800 leading-relaxed">
-                      {questions[currentQuestionIndex].question_text}
-                    </p>
+        {/* 答题阶段 */}
+        {currentStep === "answering" && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* 进度条 */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">
+                    题目 {currentQuestionIndex + 1} / {questions.length}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-orange-600" />
+                    <span className="text-sm font-mono">{formatTime(timeLeft)}</span>
                   </div>
-                  {questions[currentQuestionIndex].keywords && questions[currentQuestionIndex].keywords.length > 0 && (
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-xs sm:text-sm text-gray-600">
-                        <strong>关键考察点：</strong>
-                        {questions[currentQuestionIndex].keywords.join(", ")}
-                      </p>
-                    </div>
-                  )}
-                  <Textarea
-                    value={currentAnswer}
-                    onChange={(e) => setCurrentAnswer(e.target.value)}
-                    placeholder="请在这里输入你的回答..."
-                    className="min-h-[120px] sm:min-h-[200px] text-sm sm:text-base"
-                  />
-                  <div className="flex justify-between items-center">
-                    <div className="text-xs sm:text-sm text-gray-500">建议回答时间：3-5分钟</div>
+                </div>
+                <Progress value={((currentQuestionIndex + 1) / questions.length) * 100} />
+              </CardContent>
+            </Card>
+
+            {/* 题目卡片 */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between gap-4">
+                  <CardTitle className="text-lg flex-1">
+                    {questions[currentQuestionIndex]?.question_text}
+                  </CardTitle>
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <Button
-                      onClick={submitCurrentAnswer}
-                      disabled={!currentAnswer.trim()}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-6 text-sm sm:text-base"
+                      variant="outline"
+                      size="sm"
+                      onClick={isSpeaking ? stopSpeaking : speakQuestion}
+                      className={isSpeaking ? "bg-blue-50 border-blue-200" : ""}
                     >
-                      <Send className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                      {currentQuestionIndex < questions.length - 1 ? "下一题" : "完成练习"}
+                      {isSpeaking ? (
+                        <VolumeX className="h-4 w-4 mr-1" />
+                      ) : (
+                        <Volume2 className="h-4 w-4 mr-1" />
+                      )}
+                      {isSpeaking ? "停止朗读" : "朗读题目"}
+                    </Button>
+                    
+                    {isSpeaking && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={toggleSpeaking}
+                      >
+                        <Pause className="h-4 w-4 mr-1" />
+                        暂停
+                      </Button>
+                    )}
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={speakQuestion}
+                      disabled={isSpeaking}
+                    >
+                      <RotateCcw className="h-4 w-4 mr-1" />
+                      重读
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSpeechSettings(!showSpeechSettings)}
+                    >
+                      <Settings className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {currentStep === "analyzing" && (
-          <div className="space-y-4 sm:space-y-6">
-            <Card className="bg-white/80 backdrop-blur-sm border-white/20">
-              <CardContent className="p-6 sm:p-8 text-center">
-                <div className="space-y-4 sm:space-y-6">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto animate-pulse">
-                    <Brain className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
+                
+                {/* 朗读进度指示器 */}
+                {isSpeaking && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                      <span>朗读进度</span>
+                      <span>{Math.round(speechProgress)}%</span>
+                    </div>
+                    <Progress value={speechProgress} className="h-1" />
                   </div>
-                  <div>
-                    <h3 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2">AI面试官正在分析你的回答</h3>
-                    <p className="text-sm sm:text-base text-gray-600 mb-4">正在生成专业的调侃式评估报告，请稍候...</p>
-                    <Progress value={stageProgress} className="h-2 sm:h-3 max-w-md mx-auto" />
-                    <p className="text-xs sm:text-sm text-gray-500 mt-2">分析进度: {Math.round(stageProgress)}%</p>
+                )}
+                
+                {/* 语音设置面板 */}
+                {showSpeechSettings && (
+                  <div className="mt-3 p-4 bg-gray-50 rounded-lg border">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Settings className="h-4 w-4 text-gray-600" />
+                      <span className="text-sm font-medium text-gray-700">语音设置</span>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {/* 语速调节 */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-xs font-medium text-gray-600">语速</label>
+                          <span className="text-xs text-gray-500">{speechRate.toFixed(1)}x</span>
+                        </div>
+                        <Slider
+                          value={[speechRate]}
+                          onValueChange={(value) => setSpeechRate(value[0])}
+                          min={0.5}
+                          max={2.0}
+                          step={0.1}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                          <span>慢</span>
+                          <span>快</span>
+                        </div>
+                      </div>
+                      
+                      {/* 音量调节 */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-xs font-medium text-gray-600">音量</label>
+                          <span className="text-xs text-gray-500">{Math.round(speechVolume * 100)}%</span>
+                        </div>
+                        <Slider
+                          value={[speechVolume]}
+                          onValueChange={(value) => setSpeechVolume(value[0])}
+                          min={0.1}
+                          max={1.0}
+                          step={0.1}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                          <span>小</span>
+                          <span>大</span>
+                        </div>
+                      </div>
+                      
+                      {/* 声音选择 */}
+                      {availableVoices.length > 0 && (
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 block mb-2">声音</label>
+                          <Select
+                            value={selectedVoice?.name || ""}
+                            onValueChange={(value) => {
+                              const voice = availableVoices.find(v => v.name === value)
+                              setSelectedVoice(voice || null)
+                            }}
+                          >
+                            <SelectTrigger className="w-full text-xs">
+                              <SelectValue placeholder="选择声音" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableVoices.map((voice) => (
+                                <SelectItem key={voice.name} value={voice.name} className="text-xs">
+                                  {voice.name} ({voice.lang})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      
+                      {/* 测试按钮 */}
+                      <div className="pt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (window.speechSynthesis) {
+                              const utterance = new SpeechSynthesisUtterance("这是语音测试")
+                              utterance.rate = speechRate
+                              utterance.volume = speechVolume
+                              if (selectedVoice) utterance.voice = selectedVoice
+                              window.speechSynthesis.speak(utterance)
+                            }
+                          }}
+                          className="w-full"
+                        >
+                          <Volume2 className="h-3 w-3 mr-1" />
+                          测试语音
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-xs sm:text-sm text-gray-500 space-y-1">
-                    <p>🧠 分析回答逻辑和结构...</p>
-                    <p>🎯 评估专业能力表现...</p>
-                    <p>💡 生成个性化改进建议...</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {currentStep === "result" && feedback && (
-          <div className="space-y-4 sm:space-y-6">
-            <Card className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 text-white shadow-2xl border-0">
-              <CardContent className="p-4 sm:p-8">
-                <div className="text-center space-y-3 sm:space-y-4">
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto">
-                    <Smile className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-                  </div>
-                  <h2 className="text-xl sm:text-3xl font-bold">😏 AI面试官的调侃总结</h2>
-                  <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 sm:p-4 border border-white/20">
-                    <p className="text-sm sm:text-lg text-white/95 leading-relaxed italic">"{feedback.summary}"</p>
-                  </div>
-                  <Badge className="bg-white/20 text-white border-white/30 text-xs sm:text-sm px-3 py-1">
-                    {feedback.performanceLevel}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white/80 backdrop-blur-sm border-white/20">
-              <CardHeader>
-                <CardTitle className="flex items-center text-indigo-700 text-sm sm:text-lg">
-                  <Brain className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                  AI产品经理能力维度评估标准
-                </CardTitle>
-                <p className="text-xs sm:text-sm text-gray-600 mt-2">
-                  了解评估体系，让你清楚知道AI面试官是如何"调侃"你的 😉
-                </p>
+                )}
               </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 sm:gap-4">
-                  {abilityDimensions[moduleType].map((dimension, index) => (
-                    <div
-                      key={index}
-                      className="border border-gray-200 rounded-lg p-3 sm:p-4 bg-gradient-to-r from-gray-50 to-indigo-50/30"
-                    >
-                      <div className="flex items-center justify-between mb-2 sm:mb-3">
-                        <h4 className="font-semibold text-gray-900 text-xs sm:text-base">{dimension.name}</h4>
-                        <Badge variant="outline" className="text-xs font-medium">
-                          权重 {dimension.weight}
-                        </Badge>
-                      </div>
-                      <p className="text-gray-700 text-xs sm:text-sm mb-2 sm:mb-3 leading-relaxed">
-                        {dimension.description}
-                      </p>
-                      <div className="space-y-1 sm:space-y-2">
-                        <p className="text-xs font-medium text-gray-600 mb-1 sm:mb-2">评估标准：</p>
-                        <div className="grid gap-1">
-                          {dimension.standards.map((standard, idx) => (
-                            <div key={idx} className="flex items-start space-x-2">
-                              <div
-                                className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full mt-1.5 flex-shrink-0 ${
-                                  idx === 0 ? "bg-green-500" : idx === 1 ? "bg-yellow-500" : "bg-red-500"
-                                }`}
-                              ></div>
-                              <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">{standard}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+              <CardContent className="space-y-4">
+                <Textarea
+                  value={currentAnswer}
+                  onChange={(e) => setCurrentAnswer(e.target.value)}
+                  placeholder="请输入您的答案..."
+                  className="min-h-[200px]"
+                />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={toggleRecording}
+                        className={isRecording ? "bg-red-50 border-red-200" : ""}
+                      >
+                        <Mic className={`h-4 w-4 mr-2 ${isRecording ? "text-red-600" : ""}`} />
+                        {isRecording ? "停止录音" : "语音输入"}
+                      </Button>
+                      
+                      {isRecording && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={togglePause}
+                          className={isPaused ? "bg-yellow-50 border-yellow-200" : ""}
+                        >
+                          {isPaused ? "恢复" : "暂停"}
+                        </Button>
+                      )}
                     </div>
-                  ))}
-                </div>
-                <div className="mt-3 sm:mt-4 p-2 sm:p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-xs sm:text-sm text-blue-700">
-                    💡 <strong>评估哲学：</strong>我们不是在找"标准答案"，而是在寻找你独特的AI产品思维。
-                    每个维度都是为了帮你成为更好的AI产品经理，而不是为了难倒你。
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="grid gap-3 sm:gap-6">
-              <Card className="bg-white/80 backdrop-blur-sm border-white/20">
-                <CardHeader>
-                  <CardTitle className="flex items-center text-green-700 text-sm sm:text-lg">
-                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    有点意思的地方 ({feedback.strengths.length}个)
-                  </CardTitle>
-                  <p className="text-xs sm:text-sm text-green-600 mt-1">
-                    这些地方让AI面试官眼前一亮，继续保持这种"导演"风格 🎬
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 sm:space-y-4">
-                    {feedback.strengths.map((strength, index) => (
-                      <div
-                        key={index}
-                        className="border-l-4 border-green-500 pl-2 sm:pl-4 bg-green-50/50 rounded-r-lg py-2 sm:py-3"
-                      >
-                        <div className="flex items-center mb-1 sm:mb-2">
-                          <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs font-medium">
-                            {strength.area}
-                          </Badge>
-                        </div>
-                        <p className="text-gray-700 text-xs sm:text-sm leading-relaxed">{strength.description}</p>
-                      </div>
-                    ))}
+                    
+                    <Button onClick={submitCurrentAnswer} disabled={!currentAnswer.trim()}>
+                      <Send className="h-4 w-4 mr-2" />
+                      {currentQuestionIndex < questions.length - 1 ? "下一题" : "完成答题"}
+                    </Button>
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-white/80 backdrop-blur-sm border-white/20">
-                <CardHeader>
-                  <CardTitle className="flex items-center text-orange-700 text-sm sm:text-lg">
-                    <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    怎么答会更好（直接版） ({feedback.improvements.length}个)
-                  </CardTitle>
-                  <p className="text-xs sm:text-sm text-orange-600 mt-1">
-                    别把这些当批评，把它们当成"从旁白升级为导演"的秘籍 📚
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 sm:space-y-4">
-                    {feedback.improvements.map((improvement, index) => (
-                      <div
-                        key={index}
-                        className="border-l-4 border-orange-500 pl-2 sm:pl-4 bg-orange-50/50 rounded-r-lg py-2 sm:py-3"
-                      >
-                        <div className="flex items-center mb-1 sm:mb-2">
-                          <Badge variant="secondary" className="bg-orange-100 text-orange-700 text-xs font-medium">
-                            {improvement.area}
-                          </Badge>
-                        </div>
-                        <p className="text-gray-700 text-xs sm:text-sm leading-relaxed mb-2">
-                          {improvement.suggestion}
-                        </p>
-                        <div className="bg-white/80 rounded-lg p-2 border border-orange-200">
-                          <p className="text-xs sm:text-sm text-orange-800">
-                            <strong>具体这样说：</strong>
-                            {improvement.example}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-white/80 backdrop-blur-sm border-white/20">
-                <CardHeader>
-                  <CardTitle className="flex items-center text-blue-700 text-sm sm:text-lg">
-                    <Target className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    直接可行动的建议 ({feedback.nextSteps.length}个)
-                  </CardTitle>
-                  <p className="text-xs sm:text-sm text-blue-600 mt-1">这些不是空话，都是可以立即开始做的具体行动 🚀</p>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 sm:space-y-4">
-                    {feedback.nextSteps.map((step, index) => (
-                      <div
-                        key={index}
-                        className="border-l-4 border-blue-500 pl-2 sm:pl-4 bg-blue-50/50 rounded-r-lg py-2 sm:py-3"
-                      >
-                        <div className="flex items-center mb-1 sm:mb-2">
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs font-medium">
-                            {step.focus}
-                          </Badge>
-                        </div>
-                        <p className="text-gray-700 text-xs sm:text-sm leading-relaxed">{step.actionable}</p>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {feedback.encouragement && (
-                <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
-                  <CardContent className="p-3 sm:p-6 text-center">
-                    <div className="w-8 h-8 sm:w-12 sm:h-12 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-4">
-                      <Smile className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
-                    </div>
-                    <h3 className="text-sm sm:text-lg font-semibold text-purple-900 mb-2">AI面试官的鼓励</h3>
-                    <p className="text-xs sm:text-base text-purple-700 leading-relaxed italic">
-                      "{feedback.encouragement}"
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-
-            {/* 登录提示卡片 */}
-            <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 mb-4">
-              <CardContent className="p-4 text-center">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Users className="w-5 h-5 text-white" />
-                </div>
-                <h3 className="text-lg font-semibold text-blue-900 mb-2">想要长期记录您的面试表现？</h3>
-                <p className="text-blue-700 text-sm mb-3">
-                  登录后可以保存面试记录、追踪进步轨迹、获得个性化建议
-                </p>
-                <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                  <Button
-                    variant="outline"
-                    className="text-blue-700 border-blue-300 hover:bg-blue-100 text-sm px-4 py-2"
-                    onClick={() => {
-                      window.location.href = '/auth/login'
-                    }}
-                  >
-                    立即登录
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="text-blue-600 hover:text-blue-800 text-sm px-4 py-2"
-                    onClick={() => {
-                      window.location.href = '/auth/sign-up'
-                    }}
-                  >
-                    免费注册
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white/80 backdrop-blur-sm border-white/20">
-  <CardHeader>
-    <CardTitle className="text-sm sm:text-lg">历史评估记录</CardTitle>
-  </CardHeader>
-  <CardContent>
-    {history.length === 0 ? (
-      <p className="text-gray-600 text-xs sm:text-sm">暂无历史记录</p>
-    ) : (
-      <div className="space-y-4">
-        {history.map((item, index) => (
-          <div key={index} className="border-b pb-4">
-            <p className="font-semibold">{item.performanceLevel}</p>
-            <p className="text-sm">{item.summary}</p>
-          </div>
-        ))}
-      </div>
-    )}
-  </CardContent>
-</Card>
-<div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-  <Button
-    onClick={restartPractice}
-    variant="outline"
-    className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base bg-transparent"
-  >
-    <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-    再来一次
-  </Button>
-  <Button
-    onClick={onBack}
-    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base"
-  >
-    选择其他阶段
-  </Button>
-</div>
-          </div>
-        )}
-
-        {evaluationError && (
-          <Card className="bg-red-50 border-red-200">
-            <CardContent className="p-3 sm:p-6 text-center">
-              <p className="text-red-700 text-sm sm:text-base mb-3 sm:mb-4">{evaluationError}</p>
-              <Button
-                onClick={() => submitAllAnswers(answers)}
-                variant="outline"
-                className="text-red-700 border-red-300 hover:bg-red-100 text-sm sm:text-base"
-              >
-                重试评估
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </div>
-  )
-}
-const hrQuestions = [
-  { id: 'hr1', question_text: '请做一下自我介绍，并谈谈你的职业动机。', keywords: ['自我认知', '表达逻辑', 'AI PM 理解'] },
-  { id: 'hr2', question_text: '请谈谈你的职业规划与能力提升计划。', keywords: ['自驱力', '学习方法', 'AI 前沿关注'] },
-  { id: 'hr3', question_text: '请描述一个团队协作与冲突解决的经历。', keywords: ['沟通', '协调', '跨职能团队'] },
-]
-const professionalQuestions = [
-  { id: 'prof1', question_text: '请谈谈AI技术选型与应用场景，例如RAG vs. 微调。', keywords: ['技术选型', '优劣对比', '产品场景'] },
-  { id: 'prof2', question_text: '请描述一个AI产品落地与数据飞轮的设计。', keywords: ['产品设计', '数据驱动', '增长循环'] },
-  { id: 'prof3', question_text: '如何平衡技术与商业需求？', keywords: ['权衡思维', '成本收益', '优化流程'] },
-]
-const finalQuestions = [
-  { id: 'final1', question_text: '请谈谈行业趋势与未来判断，例如AI Agent。', keywords: ['前沿技术', '商业化瓶颈', '应用场景'] },
-  { id: 'final2', question_text: '请设计一个AI产品的商业模式。', keywords: ['定价策略', '客户需求', '商业评估'] },
-  { id: 'final3', question_text: '请分析一个复杂场景，例如医疗AI影像诊断。', keywords: ['结构化分析', '平衡维度', '风险管理'] },
-]
-// Update abilityDimensions for hr
-abilityDimensions.hr = [
-  { name: '职业动机真实性', weight: '高', description: '对 AI PM 岗位的理解是否深入，动机是否源于热爱而非盲从。', standards: ['高: 深入理解并结合个人经历', '中: 基本理解但缺乏深度', '低: 泛泛而谈'] },
-  { name: '自我认知清晰度', weight: '高', description: '对自身优势、劣势和未来发展路径是否有清晰规划。', standards: ['高: 清晰规划并量化', '中: 有规划但不具体', '低: 模糊不清'] },
-  { name: '团队协作软实力', weight: '高', description: '能否在复杂团队环境中有效沟通和解决冲突。', standards: ['高: 具体案例并展示技巧', '中: 有经验但缺乏细节', '低: 无相关经历'] },
-]
-abilityDimensions.professional = [
-  { name: '技术理解深度', weight: '高', description: '能否清晰解释 AI 技术原理，并与产品场景结合。', standards: ['高: 深度解释并结合场景', '中: 基本解释', '低: 理解浅显'] },
-  { name: '产品落地能力', weight: '高', description: '是否能设计出可行的 AI 产品方案，并考虑数据飞轮。', standards: ['高: 完整方案设计', '中: 部分考虑', '低: 缺乏可行性'] },
-  { name: '商业化平衡能力', weight: '高', description: '在追求技术效果的同时，能否兼顾成本、收益和用户价值。', standards: ['高: 全面平衡', '中: 部分兼顾', '低: 忽略商业'] },
-]
-abilityDimensions.final = [
-  { name: '行业洞察力', weight: '高', description: '对 AI 行业趋势（如 Agent、多模态）有前瞻性见解。', standards: ['高: 前瞻性见解', '中: 基本了解', '低: 缺乏洞察'] },
-  { name: '战略规划能力', weight: '高', description: '能从宏观层面思考产品，并设计可行的商业模式。', standards: ['高: 宏观思考', '中: 部分规划', '低: 缺乏战略'] },
-  { name: '复杂问题拆解能力', weight: '高', description: '面对开放性难题，能结构化地分析和解决。', standards: ['高: 结构化分析', '中: 基本拆解', '低: 无法处理'] },
-]
-
-const startPractice = () => {
-  let selectedQuestions = []
-  if (moduleType === 'hr') {
-  selectedQuestions = hrQuestions
-} else if (moduleType === 'professional') {
-  selectedQuestions = professionalQuestions
-} else if (moduleType === 'final') {
-  selectedQuestions = finalQuestions
-} else {
-  // existing random logic for other stages
-}
-  setQuestions(selectedQuestions)
-  // Add interactive follow-up
-  if (currentStep === 'answering' && showFollowUp) {
-    // Render follow-up question
-  }
-  // Update submitAllAnswers to include async notification
-  // Simulate async push after evaluation
-  setTimeout(() => {
-    // Show notification
-  }, 5000)
-  // Update result UI to include progress bar and tuned feedback
-  <Progress value={completionPercentage} />
-  setTimeLeft(300) // 5分钟每题
-  setCurrentStep("answering")
-  setFeedback(null)
-  setEvaluationError(null)
-  setStageProgress(0)
-  console.log("🔄 [前端] 开始阶段练习:", currentStage.title, `共${questions.length}道题`)
-}
-
-const submitCurrentAnswer = () => {
-  if (!currentAnswer.trim()) return
-
-  const newAnswers = [...answers, currentAnswer]
-  setAnswers(newAnswers)
-  setCurrentAnswer("")
-  setStageProgress(((currentQuestionIndex + 1) / questions.length) * 100)
-
-  if (currentQuestionIndex < questions.length - 1) {
-    // 继续下一题
-    setCurrentQuestionIndex((prev) => prev + 1)
-    setTimeLeft(300)
-    console.log(`➡️ [前端] 进入第 ${currentQuestionIndex + 2} 题`)
-  } else {
-    // 完成所有题目，开始分析
-    console.log(`✅ [前端] 完成所有 ${questions.length} 道题目，开始评估`)
-    submitAllAnswers(newAnswers)
-  }
-}
-
-import { evaluateQuestionSet } from './ai-service';
-
-const submitAllAnswers = async (allAnswers: string[]) => {
-  console.log("🎯 [前端] 提交阶段答案:", {
-    stage: moduleType,
-    questionCount: questions.length,
-    answerCount: allAnswers.length,
-  })
-
-  setCurrentStep("analyzing")
-  setIsEvaluating(true)
-  setEvaluationError(null)
-
-  let progress = 0
-  const progressInterval = setInterval(() => {
-    progress += Math.random() * 15
-    if (progress > 90) progress = 90
-    setStageProgress(progress)
-  }, 200)
-
-  try {
-    const evaluationResult = await evaluateQuestionSet(moduleType, questions.map(q => q.question_text), allAnswers, currentStage.title);
-    clearInterval(progressInterval)
-    setStageProgress(100)
-    setFeedback(evaluationResult)
-    setCurrentStep("result")
-    console.log("✅ [前端] 评估完成:", evaluationResult.performanceLevel)
-  } catch (error) {
-    clearInterval(progressInterval)
-    console.error("💥 [前端] 评估失败:", error)
-    setEvaluationError(error instanceof Error ? error.message : "评估失败，请稍后重试")
-
-    const fallbackResult = generateFallbackEvaluation()
-    setFeedback(fallbackResult)
-    setCurrentStep("result")
-    console.log("🔄 [前端] 使用备用评估结果")
-  } finally {
-    setIsEvaluating(false)
-    // 模拟异步推送
-    setTimeout(() => {
-      alert('AI评估报告已生成！请查看结果。');
-    }, 1000);
-  }
-}
-
-const generateFallbackEvaluation = (): QualitativeEvaluationResponse => {
-  const stageSpecificFeedback = {
-    hr: {
-      summary:
-        "你的故事很完整，像是一部制作精良的简历纪录片。但听下来，感觉你像是AI产品的'旁白'，而不是'导演'。我们想听听你当导演时的心路历程。",
-      improvements: [
-        {
-          area: "成为'导演'",
-          suggestion:
-            "别只说'我做了什么'，要说'我为什么这么做'。用具体量化的数据证明你是如何通过技术决策，一步步实现商业目标的。",
-          example:
-            "比如说'将问题解决率从68%提升至85%，通过重新设计推荐算法架构实现，这个决策基于我对用户行为数据的深度分析'",
-        },
-        {
-          area: "突出AI PM独特性",
-          suggestion:
-            "你的介绍里要有AI时代的'关键词'：RAG、AI Agent、多模态交互。更重要，要体现AI产品经理特有的思维模式。",
-          example:
-            "比如'在设计推荐系统时，我需要平衡模型精度与用户体验，最终选择了85%精度的轻量模型，因为响应速度对用户留存的影响更大'",
-        },
-        {
-          area: "量化你的影响力",
-          suggestion: "每个项目都要有具体的数据支撑，让面试官看到你的'导演'能力不是空谈。",
-          example:
-            "不要说'优化了用户体验'，要说'通过A/B测试验证，新的AI交互方式使用户完成率提升了23%，月活跃用户增长15%'",
-        },
-      ],
-    },
-    professional: {
-      summary:
-        "你对技术的理解就像是看了一场精彩的球赛，规则都懂，战术也清楚。但我们想知道你作为教练，是如何制定战术、调整阵容的。",
-      improvements: [
-        {
-          area: "技术翻译官",
-          suggestion:
-            "在阐述技术时，将技术名词转化为业务收益，突出你的'教练'角色。不要只展示技术理解，要展示技术判断。",
-          example:
-            "不要只说'使用RAG技术'，要说'选择RAG而非微调，是因为我们的知识库更新频繁，RAG能降低30%的模型维护成本，同时保持85%的准确率'",
-        },
-        {
-          area: "数据飞轮设计师",
-          suggestion: "AI产品的核心是数据驱动增长，你需要展示如何设计这个增长引擎。",
-          example: "比如'用户每次纠错都会成为训练数据，预计3个月后模型准确率可提升到92%，形成越用越准的正向循环'",
-        },
-        {
-          area: "商业化平衡大师",
-          suggestion: "展示你如何在技术理想与商业现实间找平衡，这是AI PM的核心价值。",
-          example: "当数据科学家要求95%精度时，我会分析：从85%到95%需要额外投入50万，但业务收益只增加8%，ROI不划算",
-        },
-      ],
-    },
-    final: {
-      summary:
-        "你对未来的描绘很宏大，就像一位优秀的航海家描述远方的大陆。但我们想知道，这艘'未来之船'的发动机在哪里，航线图是什么样的？",
-      improvements: [
-        {
-          area: "趋势落地专家",
-          suggestion: "在谈论行业趋势时，将其与具体产品形态和商业模式结合，而非泛泛而谈。要有自己的独特洞察。",
-          example:
-            "不要只说'AI Agent很有前景'，要说'AI Agent在客服场景下可以降低40%人力成本，但目前的技术瓶颈是多轮对话的上下文理解，预计2年内突破'",
-        },
-        {
-          area: "商业模式建筑师",
-          suggestion: "设计商业模式时，要考虑不同客户群体的需求差异和支付能力，展示你的商业敏感度。",
-          example:
-            "中小企业按使用量付费（$0.1/次调用），大企业按年订阅（$50万/年含定制化），这样既保证了现金流又满足了不同需求",
-        },
-        {
-          area: "复杂问题拆解高手",
-          suggestion: "面对复杂场景，要展示结构化思维，用框架来分析问题，而不是凭直觉。",
-          example:
-            "医疗AI的三个维度可以用'技术-体验-合规'框架分析：技术上追求95%精度，体验上设计医生确认机制，合规上建立审计追踪",
-        },
-      ],
-    },
-  }
-
-  const feedback = stageSpecificFeedback[moduleType]
-
-  return {
-    performanceLevel: "良好表现",
-    summary: feedback.summary,
-    strengths: [
-      {
-        area: "表达逻辑",
-        description: "回答结构清晰，能够按照逻辑顺序组织内容，体现了良好的沟通基础。这是成为优秀AI PM的重要基石。",
-      },
-      {
-        area: "学习态度",
-        description: "对AI产品经理角色有基本认知，展现出学习和成长的积极态度。这种开放的心态很难得。",
-      },
-      {
-        area: "专业素养",
-        description: "在回答中体现出对产品工作的基本理解，有一定的专业基础，这进一步提升了基础。",
-      },
-    ],
-    improvements: feedback.improvements,
-    nextSteps: [
-      {
-        focus: "深化AI产品理解",
-        actionable: "每周研读2-3个AI产品的成功案例，特别关注他们如何将技术能力转化为商业价值，建立自己的案例库",
-      },
-      {
-        focus: "建立量化思维",
-        actionable: "在描述任何项目时，都要准备3个关键数据：投入成本、产出效果、时间周期。用数据说话，而不是感觉",
-      },
-      {
-        focus: "实践AI产品设计",
-        actionable: "选择一个你熟悉的产品，设计一个AI功能的完整方案：技术选型、数据获取、用户体验、商业模式",
-      },
-    ],
-    encouragement:
-      "记住，每个优秀的AI产品经理都是从'旁白'开始，逐步成长为'导演'的。你已经有了很好的基础，现在需要的是更多的实战经验和深度思考。继续保持这种学习热情，相信你很快就能从观众席走到导演椅！",
-  }
-}
-
-const restartPractice = () => {
-  setCurrentStep("overview")
-  setCurrentQuestionIndex(0)
-  setAnswers([])
-  setCurrentAnswer("")
-  setFeedback(null)
-  setEvaluationError(null)
-  setStageProgress(0)
-  loadQuestions()
-}
-
-if (isLoadingQuestions) {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
-      <Card className="bg-white/80 backdrop-blur-sm border-white/20">
-        <CardContent className="p-8 text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">正在加载题库...</h3>
-          <p className="text-gray-600">从数据库中获取最新的面试题目</p>
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
-if (questions.length === 0) {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
-      <Card className="bg-white/80 backdrop-blur-sm border-white/20">
-        <CardContent className="p-8 text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Target className="w-8 h-8 text-red-600" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">暂无可用题目</h3>
-          <p className="text-gray-600 mb-4">该阶段的题目正在准备中，请稍后再试</p>
-          <div className="space-y-2">
-            <Button onClick={loadQuestions} className="mr-2">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              重新加载
-            </Button>
-            <Button variant="outline" onClick={onBack}>
-              返回选择
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
-return (
-  <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-    <div className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-10">
-      <div className="max-w-4xl mx-auto px-3 sm:px-6 py-2 sm:py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2 sm:space-x-4">
-            <Button
-              variant="ghost"
-              onClick={onBack}
-              className="text-gray-600 hover:text-gray-900 p-1 sm:p-2"
-              size="sm"
-            >
-              <ArrowLeft className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">返回</span>
-            </Button>
-            <div className="h-4 w-px bg-gray-300 hidden sm:block" />
-            <div className="flex items-center space-x-2">
-              <div className="w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-br from-blue-600 to-purple-600 rounded flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-bold text-xs">F</span>
-              </div>
-              <span className="font-semibold text-gray-900 text-sm sm:text-base">FutureU</span>
-              <IconComponent className="w-4 h-4 text-gray-600 ml-2" />
-              <h1 className="text-sm sm:text-lg font-semibold text-gray-900 truncate">
-                {currentStage.title.split(" - ")[0]}
-              </h1>
-            </div>
-          </div>
-          {currentStep === "answering" && (
-            <div className="flex items-center space-x-2">
-              <div className="text-xs text-gray-600">
-                {currentQuestionIndex + 1}/{questions.length}
-              </div>
-              <div className="flex items-center space-x-1">
-                <Clock className="w-3 h-3 text-orange-500" />
-                <span className={`font-mono text-sm ${timeLeft < 30 ? "text-red-500" : "text-orange-500"}`}>
-                  {formatTime(timeLeft)}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto p-3 sm:p-6">
-        {currentStep === "overview" && (
-          <div className="space-y-4 sm:space-y-6">
-            <Card
-              className={`bg-gradient-to-br from-${currentStage.color}-600 via-${currentStage.color}-500 to-purple-600 text-white shadow-2xl border-0`}
-            >
-              <CardContent className="p-4 sm:p-8">
-                <div className="flex flex-col sm:flex-row items-start space-y-3 sm:space-y-0 sm:space-x-6">
-                  <div className="w-10 h-10 sm:w-16 sm:h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg">
-                    <IconComponent className="w-5 h-5 sm:w-8 sm:h-8 text-white" />
-                  </div>
-                  <div className="flex-1 space-y-2 sm:space-y-4">
-                    <h2 className="text-xl sm:text-3xl font-bold text-white">{currentStage.title}</h2>
-                    <p className="text-white/90 text-sm sm:text-lg leading-relaxed">{currentStage.description}</p>
-                    <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-3 sm:mt-6">
-                      <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2 sm:p-3 text-center border border-white/20">
-                        <div className="text-lg sm:text-2xl font-bold text-white">{questions.length}</div>
-                        <div className="text-white/80 text-xs sm:text-sm">随机题目</div>
-                      </div>
-                      <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2 sm:p-3 text-center border border-white/20">
-                        <div className="text-lg sm:text-2xl font-bold text-white">
-                          {Math.ceil(questions.length * 5)}
-                        </div>
-                        <div className="text-white/80 text-xs sm:text-sm">预计分钟</div>
-                      </div>
-                      <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2 sm:p-3 text-center border border-white/20">
-                        <div className="text-lg sm:text-2xl font-bold text-white">{totalQuestionsInStage}</div>
-                        <div className="text-white/80 text-xs sm:text-sm">题库总数</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="grid gap-3 sm:gap-4">
-              {questions.map((question, index) => (
-                <Card key={question.id} className="bg-white/80 backdrop-blur-sm border-white/20">
-                  <CardContent className="p-3 sm:p-6">
-                    <div className="flex items-start space-x-3">
-                      <div
-                        className={`w-6 h-6 sm:w-8 sm:h-8 bg-${currentStage.color}-100 rounded-full flex items-center justify-center flex-shrink-0`}
-                      >
-                        <span className={`text-${currentStage.color}-600 font-bold text-xs sm:text-sm`}>
-                          {index + 1}
+                  
+                  {/* 语音识别状态显示 */}
+                  {isRecording && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-2 h-2 rounded-full ${isPaused ? 'bg-yellow-500' : 'bg-green-500 animate-pulse'}`}></div>
+                        <span className="text-sm font-medium text-blue-700">
+                          {isPaused ? '语音识别已暂停' : '正在监听...'}
                         </span>
+                        
+                        {/* 音量指示器 */}
+                        {!isPaused && (
+                          <div className="flex items-center gap-1 ml-auto">
+                            <span className="text-xs text-gray-500">音量:</span>
+                            <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-gradient-to-r from-green-400 to-green-600 transition-all duration-100"
+                                style={{ width: `${Math.max(5, audioLevel)}%` }}
+                              ></div>
+                            </div>
+                            <span className="text-xs text-gray-500 w-8">{Math.round(audioLevel)}%</span>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm sm:text-lg font-semibold text-gray-900 mb-2">题目预览 {index + 1}</h3>
-                        <p className="text-xs sm:text-base text-gray-600 mb-3 leading-relaxed">
-                          {question.question_text.length > 100
-                            ? question.question_text.substring(0, 100) + "..."
-                            : question.question_text}
+                      
+                      {interimTranscript && (
+                        <p className="text-sm text-gray-600 italic">
+                          识别中: {interimTranscript}
                         </p>
-                        <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
-                          <p className="text-xs sm:text-sm text-gray-700">
-                            <strong>难度：</strong>
-                            {question.difficulty_level || "中等"}
-                            {question.keywords && question.keywords.length > 0 && (
-                              <>
-                                <strong className="ml-4">关键词：</strong>
-                                {question.keywords.slice(0, 3).join(", ")}
-                              </>
-                            )}
-                          </p>
-                        </div>
-                      </div>
+                      )}
+                      
+                      {/* 音量提示 */}
+                      {!isPaused && audioLevel < 10 && (
+                        <p className="text-xs text-yellow-600 mt-1">
+                          💡 音量较低，请靠近麦克风或提高音量
+                        </p>
+                      )}
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            <div className="text-center">
-              <Button
-                onClick={startPractice}
-                size="lg"
-                className={`bg-gradient-to-r from-${currentStage.color}-600 to-purple-600 hover:from-${currentStage.color}-700 hover:to-purple-700 text-white px-6 sm:px-8 py-3 w-full sm:w-auto text-sm sm:text-base`}
-              >
-                <Play className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                开始{currentStage.title.split(" - ")[0]}练习
-              </Button>
-            </div>
+                  )}
+                  
+                  {speechError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <p className="text-red-700 text-sm">{speechError}</p>
+                    </div>
+                  )}
+                </div>
+                
+                {/* 快捷键提示 */}
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-1 mb-2">
+                    <Settings className="h-3 w-3 text-gray-500" />
+                    <span className="text-xs font-medium text-gray-600">快捷键</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs text-gray-500">
+                    <div className="flex items-center gap-1">
+                      <kbd className="px-1 py-0.5 bg-white border rounded text-xs">Ctrl+R</kbd>
+                      <span>朗读</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <kbd className="px-1 py-0.5 bg-white border rounded text-xs">Ctrl+P</kbd>
+                      <span>暂停</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <kbd className="px-1 py-0.5 bg-white border rounded text-xs">Ctrl+S</kbd>
+                      <span>停止</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 
-        {currentStep === "answering" && questions[currentQuestionIndex] && (
-          <div className="space-y-4 sm:space-y-6">
-            <Card className="bg-white/80 backdrop-blur-sm border-white/20">
-              <CardHeader className="pb-3 sm:pb-6">
-                <div className="flex items-center justify-between mb-2 sm:mb-4">
-                  <CardTitle className="text-base sm:text-xl text-gray-900">
-                    题目 {currentQuestionIndex + 1}: 面试问题
-                  </CardTitle>
-                  <Badge variant="outline" className="text-xs">
-                    {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
-                  </Badge>
-                </div>
-                <Progress value={stageProgress} className="h-1 sm:h-2" />
+        {/* 分析阶段 */}
+        {currentStep === "analyzing" && (
+          <div className="max-w-2xl mx-auto">
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-blue-600" />
+                <h3 className="text-xl font-semibold mb-2">AI正在分析您的回答</h3>
+                <p className="text-gray-600 mb-6">请稍候，我们正在从多个维度评估您的表现...</p>
+                <Progress value={stageProgress} className="mb-4" />
+                <p className="text-sm text-gray-500">分析进度: {Math.round(stageProgress)}%</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* 结果阶段 */}
+        {currentStep === "result" && feedback && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  评估完成
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3 sm:space-y-4">
-                  <div className="bg-blue-50 border-l-4 border-blue-500 p-3 sm:p-4 rounded-r-lg">
-                    <p className="text-sm sm:text-base text-gray-800 leading-relaxed">
-                      {questions[currentQuestionIndex].question_text}
-                    </p>
+                <div className="space-y-6">
+                  {/* 总体表现 */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant={feedback.performanceLevel === "优秀表现" ? "default" : "secondary"}>
+                        {feedback.performanceLevel}
+                      </Badge>
+                    </div>
+                    <p className="text-gray-700">{feedback.summary}</p>
                   </div>
-                  {questions[currentQuestionIndex].keywords && questions[currentQuestionIndex].keywords.length > 0 && (
-                    <div className="bg-gray-50 rounded-lg p-3"
+
+                  {/* 优势 */}
+                  <div>
+                    <h3 className="font-semibold mb-3 flex items-center gap-2">
+                      <Smile className="h-4 w-4 text-green-600" />
+                      表现亮点
+                    </h3>
+                    <div className="space-y-3">
+                      {feedback.strengths.map((strength, index) => (
+                        <div key={index} className="bg-green-50 p-4 rounded-lg">
+                          <h4 className="font-medium text-green-800">{strength.area}</h4>
+                          <p className="text-green-700 text-sm mt-1">{strength.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 改进建议 */}
+                  <div>
+                    <h3 className="font-semibold mb-3 flex items-center gap-2">
+                      <Lightbulb className="h-4 w-4 text-orange-600" />
+                      提升建议
+                    </h3>
+                    <div className="space-y-3">
+                      {feedback.improvements.map((improvement, index) => (
+                        <div key={index} className="bg-orange-50 p-4 rounded-lg">
+                          <h4 className="font-medium text-orange-800">{improvement.area}</h4>
+                          <p className="text-orange-700 text-sm mt-1">{improvement.suggestion}</p>
+                          <p className="text-orange-600 text-xs mt-2 italic">{improvement.example}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 下一步行动 */}
+                  <div>
+                    <h3 className="font-semibold mb-3 flex items-center gap-2">
+                      <Target className="h-4 w-4 text-blue-600" />
+                      行动计划
+                    </h3>
+                    <div className="space-y-3">
+                      {feedback.nextSteps.map((step, index) => (
+                        <div key={index} className="bg-blue-50 p-4 rounded-lg">
+                          <h4 className="font-medium text-blue-800">{step.focus}</h4>
+                          <p className="text-blue-700 text-sm mt-1">{step.actionable}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 鼓励话语 */}
+                  {feedback.encouragement && (
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-lg">
+                      <p className="text-purple-700 italic">{feedback.encouragement}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-8 pt-6 border-t flex gap-4">
+                  <Button onClick={restartPractice} variant="outline" className="flex-1">
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    重新练习
+                  </Button>
+                  <Button onClick={onBack} className="flex-1">
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    返回选择
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
