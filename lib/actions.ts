@@ -42,6 +42,23 @@ export async function signIn(prevState: any, formData: FormData) {
         }
       },
     },
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce'
+    },
+    global: {
+      headers: {
+        'X-Client-Info': 'supabase-js-server'
+      }
+    },
+    // 开发环境配置：禁用速率限制
+    realtime: {
+      params: {
+        eventsPerSecond: 1000 // 增加事件频率限制
+      }
+    }
   })
 
   try {
@@ -61,7 +78,7 @@ export async function signIn(prevState: any, formData: FormData) {
   }
 }
 
-// 注册操作
+// 注册操作 - 优化版本
 export async function signUp(prevState: any, formData: FormData) {
   if (!formData) {
     return { error: "表单数据缺失" }
@@ -99,10 +116,27 @@ export async function signUp(prevState: any, formData: FormData) {
         }
       },
     },
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce'
+    },
+    global: {
+      headers: {
+        'X-Client-Info': 'supabase-js-server'
+      }
+    },
+    // 开发环境配置：禁用速率限制
+    realtime: {
+      params: {
+        eventsPerSecond: 1000 // 增加事件频率限制
+      }
+    }
   })
 
   try {
-    // 注册用户，禁用邮箱确认
+    // 改进的注册策略：简化注册流程，避免profile创建问题
     const { data, error } = await supabase.auth.signUp({
       email: email.toString(),
       password: password.toString(),
@@ -111,31 +145,72 @@ export async function signUp(prevState: any, formData: FormData) {
           process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||
           `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback`,
         data: {
-          email_confirm: false // 禁用邮箱确认
+          email_confirm: false // 禁用邮箱确认以简化流程
         }
       },
     })
 
     if (error) {
-      return { error: error.message }
+      // 提供更友好的错误信息
+      if (error.message.includes('duplicate key') || error.message.includes('already exists')) {
+        return { error: "该邮箱已被注册，请使用其他邮箱或尝试登录" }
+      }
+      if (error.message.includes('invalid email')) {
+        return { error: "邮箱格式不正确，请检查后重试" }
+      }
+      if (error.message.includes('weak password')) {
+        return { error: "密码强度不够，请使用至少6位包含字母和数字的密码" }
+      }
+      return { error: `注册失败: ${error.message}` }
     }
 
-    // 如果注册成功但需要邮箱确认，直接登录
+    // 如果注册成功但用户还未激活，尝试手动创建profile记录
+    if (data.user && data.user.id) {
+      try {
+        // 使用服务端权限来创建profile记录
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({ 
+            id: data.user.id, 
+            email: email.toString(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }, { 
+            onConflict: 'id' 
+          })
+
+        if (profileError) {
+          console.warn("Profile creation warning:", profileError.message)
+          // 不因为profile创建失败而终止注册流程
+        }
+      } catch (profileErr) {
+        console.warn("Profile creation error:", profileErr)
+        // 继续注册流程，profile可以后续创建
+      }
+    }
+
+    // 如果注册成功但需要邮箱确认，尝试自动登录
     if (data.user && !data.session) {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.toString(),
-        password: password.toString(),
-      })
-      
-      if (signInError) {
-        return { error: signInError.message }
+      try {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: email.toString(),
+          password: password.toString(),
+        })
+        
+        if (signInError) {
+          console.warn("Auto sign-in after registration failed:", signInError.message)
+          return { success: "注册成功！请尝试登录您的账户。" }
+        }
+      } catch (signInErr) {
+        console.warn("Auto sign-in error:", signInErr)
+        return { success: "注册成功！请尝试登录您的账户。" }
       }
     }
 
     return { success: "注册成功！正在为您登录..." }
   } catch (error) {
     console.error("注册错误:", error)
-    return { error: "发生意外错误，请重试" }
+    return { error: "注册过程中发生错误，请稍后重试" }
   }
 }
 

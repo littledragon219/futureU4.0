@@ -83,10 +83,29 @@ export default function AuthModal({ isOpen, onClose, onLogin, onRegister, onForg
 
     try {
       await onRegister(email, password, confirmPassword)
-      setSuccessMessage("注册成功！请查收邮箱验证邮件")
+      setSuccessMessage("注册成功！正在为您登录...")
       setMode("success")
+      // 延迟关闭模态框，让用户看到成功消息
+      setTimeout(() => {
+        handleClose()
+      }, 2000)
     } catch (err: any) {
-      setError(err.message || "注册失败，请重试")
+      // 提供更友好的错误提示
+      let errorMessage = err.message || "注册失败，请重试"
+      
+      if (errorMessage.includes("Database error saving new user")) {
+        errorMessage = "数据库配置问题，请联系管理员或稍后重试"
+      } else if (errorMessage.includes("already exists") || errorMessage.includes("duplicate")) {
+        errorMessage = "该邮箱已被注册，请使用其他邮箱或尝试登录"
+      } else if (errorMessage.includes("invalid email")) {
+        errorMessage = "邮箱格式不正确，请检查后重试"
+      } else if (errorMessage.includes("weak password")) {
+        errorMessage = "密码强度不够，请使用至少6位包含字母和数字的密码"
+      } else if (errorMessage.includes("Supabase未配置")) {
+        errorMessage = "系统配置问题，请联系管理员"
+      }
+      
+      setError(errorMessage)
     } finally {
       setIsLoading(false)
     }

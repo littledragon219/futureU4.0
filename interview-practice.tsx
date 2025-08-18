@@ -148,7 +148,7 @@ const abilityDimensions = {
       weight: "高",
       description: "面对开放性难题，能结构化地分析和解决。这是高级PM必备的思维能力。",
       standards: [
-        "优秀：能系统性拆解复杂问题，提供结构化的解决方案，有清晰的优先级排序",
+        "优秀：能nsystem拆解复杂问题，提供结构化的解决方案，有清晰的优先级排序",
         "良好：有一定的问题分析能力，但结构化思维还需提升，解决方案不够系统",
         "待提升：面对复杂问题时思路不够清晰，缺乏系统性方法，容易陷入细节",
       ],
@@ -188,6 +188,7 @@ export default function InterviewPractice({ moduleType = "hr", onBack }: Intervi
   const [currentAnswer, setCurrentAnswer] = useState("")
   const [timeLeft, setTimeLeft] = useState(0)
   const [feedback, setFeedback] = useState<QualitativeEvaluationResponse | null>(null)
+const [history, setHistory] = useState<QualitativeEvaluationResponse[]>([])
   const [evaluationError, setEvaluationError] = useState<string | null>(null)
   const [stageProgress, setStageProgress] = useState(0)
   const [isEvaluating, setIsEvaluating] = useState(false)
@@ -238,8 +239,13 @@ export default function InterviewPractice({ moduleType = "hr", onBack }: Intervi
   }
 
   useEffect(() => {
-    loadQuestions()
-  }, [moduleType])
+  loadQuestions()
+  // 加载历史记录
+  const savedHistory = localStorage.getItem(`interviewHistory_${moduleType}`)
+  if (savedHistory) {
+    setHistory(JSON.parse(savedHistory))
+  }
+}, [moduleType])
 
   useEffect(() => {
     let interval: NodeJS.Timeout
@@ -343,7 +349,11 @@ export default function InterviewPractice({ moduleType = "hr", onBack }: Intervi
       if (responseData.performanceLevel) {
         const evaluationResult: QualitativeEvaluationResponse = responseData
         setFeedback(evaluationResult)
-        setCurrentStep("result")
+setCurrentStep("result")
+// 保存到历史
+const newHistory = [...history, evaluationResult]
+setHistory(newHistory)
+localStorage.setItem(`interviewHistory_${moduleType}`, JSON.stringify(newHistory))
         console.log("✅ [前端] 评估完成:", evaluationResult.performanceLevel)
       } else {
         throw new Error("评估结果格式错误")
@@ -355,7 +365,11 @@ export default function InterviewPractice({ moduleType = "hr", onBack }: Intervi
 
       const fallbackResult = generateFallbackEvaluation()
       setFeedback(fallbackResult)
-      setCurrentStep("result")
+setCurrentStep("result")
+// 保存到历史
+const newHistory = [...history, fallbackResult]
+setHistory(newHistory)
+localStorage.setItem(`interviewHistory_${moduleType}`, JSON.stringify(newHistory))
       console.log("🔄 [前端] 使用备用评估结果")
     } finally {
       setIsEvaluating(false)
@@ -378,7 +392,7 @@ export default function InterviewPractice({ moduleType = "hr", onBack }: Intervi
           {
             area: "突出AI PM独特性",
             suggestion:
-              "你的介绍里要有AI时代的'关键词'：RAG、AI Agent、多模态交互。更重要的是，要体现AI产品经理特有的思维模式。",
+              "你的介绍里要有AI时代的'关键词'：RAG、AI Agent、多模态交互。更重要，要体现AI产品经理特有的思维模式。",
             example:
               "比如'在设计推荐系统时，我需要平衡模型精度与用户体验，最终选择了85%精度的轻量模型，因为响应速度对用户留存的影响更大'",
           },
@@ -670,7 +684,7 @@ export default function InterviewPractice({ moduleType = "hr", onBack }: Intervi
                     {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
                   </Badge>
                 </div>
-                <Progress value={stageProgress} className="h-1 sm:h-2" />
+                <Progress value={stageProgress} className="h-2 sm:h-3" /> // 增强为阶段完成度
               </CardHeader>
               <CardContent>
                 <div className="space-y-3 sm:space-y-4">
@@ -949,22 +963,41 @@ export default function InterviewPractice({ moduleType = "hr", onBack }: Intervi
               </CardContent>
             </Card>
 
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-              <Button
-                onClick={restartPractice}
-                variant="outline"
-                className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base bg-transparent"
-              >
-                <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                再来一次
-              </Button>
-              <Button
-                onClick={onBack}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base"
-              >
-                选择其他阶段
-              </Button>
-            </div>
+            <Card className="bg-white/80 backdrop-blur-sm border-white/20">
+  <CardHeader>
+    <CardTitle className="text-sm sm:text-lg">历史评估记录</CardTitle>
+  </CardHeader>
+  <CardContent>
+    {history.length === 0 ? (
+      <p className="text-gray-600 text-xs sm:text-sm">暂无历史记录</p>
+    ) : (
+      <div className="space-y-4">
+        {history.map((item, index) => (
+          <div key={index} className="border-b pb-4">
+            <p className="font-semibold">{item.performanceLevel}</p>
+            <p className="text-sm">{item.summary}</p>
+          </div>
+        ))}
+      </div>
+    )}
+  </CardContent>
+</Card>
+<div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
+  <Button
+    onClick={restartPractice}
+    variant="outline"
+    className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base bg-transparent"
+  >
+    <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+    再来一次
+  </Button>
+  <Button
+    onClick={onBack}
+    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base"
+  >
+    选择其他阶段
+  </Button>
+</div>
           </div>
         )}
 
@@ -986,3 +1019,449 @@ export default function InterviewPractice({ moduleType = "hr", onBack }: Intervi
     </div>
   )
 }
+const hrQuestions = [
+  { id: 'hr1', question_text: '请做一下自我介绍，并谈谈你的职业动机。', keywords: ['自我认知', '表达逻辑', 'AI PM 理解'] },
+  { id: 'hr2', question_text: '请谈谈你的职业规划与能力提升计划。', keywords: ['自驱力', '学习方法', 'AI 前沿关注'] },
+  { id: 'hr3', question_text: '请描述一个团队协作与冲突解决的经历。', keywords: ['沟通', '协调', '跨职能团队'] },
+]
+const professionalQuestions = [
+  { id: 'prof1', question_text: '请谈谈AI技术选型与应用场景，例如RAG vs. 微调。', keywords: ['技术选型', '优劣对比', '产品场景'] },
+  { id: 'prof2', question_text: '请描述一个AI产品落地与数据飞轮的设计。', keywords: ['产品设计', '数据驱动', '增长循环'] },
+  { id: 'prof3', question_text: '如何平衡技术与商业需求？', keywords: ['权衡思维', '成本收益', '优化流程'] },
+]
+const finalQuestions = [
+  { id: 'final1', question_text: '请谈谈行业趋势与未来判断，例如AI Agent。', keywords: ['前沿技术', '商业化瓶颈', '应用场景'] },
+  { id: 'final2', question_text: '请设计一个AI产品的商业模式。', keywords: ['定价策略', '客户需求', '商业评估'] },
+  { id: 'final3', question_text: '请分析一个复杂场景，例如医疗AI影像诊断。', keywords: ['结构化分析', '平衡维度', '风险管理'] },
+]
+// Update abilityDimensions for hr
+abilityDimensions.hr = [
+  { name: '职业动机真实性', weight: '高', description: '对 AI PM 岗位的理解是否深入，动机是否源于热爱而非盲从。', standards: ['高: 深入理解并结合个人经历', '中: 基本理解但缺乏深度', '低: 泛泛而谈'] },
+  { name: '自我认知清晰度', weight: '高', description: '对自身优势、劣势和未来发展路径是否有清晰规划。', standards: ['高: 清晰规划并量化', '中: 有规划但不具体', '低: 模糊不清'] },
+  { name: '团队协作软实力', weight: '高', description: '能否在复杂团队环境中有效沟通和解决冲突。', standards: ['高: 具体案例并展示技巧', '中: 有经验但缺乏细节', '低: 无相关经历'] },
+]
+abilityDimensions.professional = [
+  { name: '技术理解深度', weight: '高', description: '能否清晰解释 AI 技术原理，并与产品场景结合。', standards: ['高: 深度解释并结合场景', '中: 基本解释', '低: 理解浅显'] },
+  { name: '产品落地能力', weight: '高', description: '是否能设计出可行的 AI 产品方案，并考虑数据飞轮。', standards: ['高: 完整方案设计', '中: 部分考虑', '低: 缺乏可行性'] },
+  { name: '商业化平衡能力', weight: '高', description: '在追求技术效果的同时，能否兼顾成本、收益和用户价值。', standards: ['高: 全面平衡', '中: 部分兼顾', '低: 忽略商业'] },
+]
+abilityDimensions.final = [
+  { name: '行业洞察力', weight: '高', description: '对 AI 行业趋势（如 Agent、多模态）有前瞻性见解。', standards: ['高: 前瞻性见解', '中: 基本了解', '低: 缺乏洞察'] },
+  { name: '战略规划能力', weight: '高', description: '能从宏观层面思考产品，并设计可行的商业模式。', standards: ['高: 宏观思考', '中: 部分规划', '低: 缺乏战略'] },
+  { name: '复杂问题拆解能力', weight: '高', description: '面对开放性难题，能结构化地分析和解决。', standards: ['高: 结构化分析', '中: 基本拆解', '低: 无法处理'] },
+]
+
+const startPractice = () => {
+  let selectedQuestions = []
+  if (moduleType === 'hr') {
+  selectedQuestions = hrQuestions
+} else if (moduleType === 'professional') {
+  selectedQuestions = professionalQuestions
+} else if (moduleType === 'final') {
+  selectedQuestions = finalQuestions
+} else {
+  // existing random logic for other stages
+}
+  setQuestions(selectedQuestions)
+  // Add interactive follow-up
+  if (currentStep === 'answering' && showFollowUp) {
+    // Render follow-up question
+  }
+  // Update submitAllAnswers to include async notification
+  // Simulate async push after evaluation
+  setTimeout(() => {
+    // Show notification
+  }, 5000)
+  // Update result UI to include progress bar and tuned feedback
+  <Progress value={completionPercentage} />
+  setTimeLeft(300) // 5分钟每题
+  setCurrentStep("answering")
+  setFeedback(null)
+  setEvaluationError(null)
+  setStageProgress(0)
+  console.log("🔄 [前端] 开始阶段练习:", currentStage.title, `共${questions.length}道题`)
+}
+
+const submitCurrentAnswer = () => {
+  if (!currentAnswer.trim()) return
+
+  const newAnswers = [...answers, currentAnswer]
+  setAnswers(newAnswers)
+  setCurrentAnswer("")
+  setStageProgress(((currentQuestionIndex + 1) / questions.length) * 100)
+
+  if (currentQuestionIndex < questions.length - 1) {
+    // 继续下一题
+    setCurrentQuestionIndex((prev) => prev + 1)
+    setTimeLeft(300)
+    console.log(`➡️ [前端] 进入第 ${currentQuestionIndex + 2} 题`)
+  } else {
+    // 完成所有题目，开始分析
+    console.log(`✅ [前端] 完成所有 ${questions.length} 道题目，开始评估`)
+    submitAllAnswers(newAnswers)
+  }
+}
+
+import { evaluateQuestionSet } from './ai-service';
+
+const submitAllAnswers = async (allAnswers: string[]) => {
+  console.log("🎯 [前端] 提交阶段答案:", {
+    stage: moduleType,
+    questionCount: questions.length,
+    answerCount: allAnswers.length,
+  })
+
+  setCurrentStep("analyzing")
+  setIsEvaluating(true)
+  setEvaluationError(null)
+
+  let progress = 0
+  const progressInterval = setInterval(() => {
+    progress += Math.random() * 15
+    if (progress > 90) progress = 90
+    setStageProgress(progress)
+  }, 200)
+
+  try {
+    const evaluationResult = await evaluateQuestionSet(moduleType, questions.map(q => q.question_text), allAnswers, currentStage.title);
+    clearInterval(progressInterval)
+    setStageProgress(100)
+    setFeedback(evaluationResult)
+    setCurrentStep("result")
+    console.log("✅ [前端] 评估完成:", evaluationResult.performanceLevel)
+  } catch (error) {
+    clearInterval(progressInterval)
+    console.error("💥 [前端] 评估失败:", error)
+    setEvaluationError(error instanceof Error ? error.message : "评估失败，请稍后重试")
+
+    const fallbackResult = generateFallbackEvaluation()
+    setFeedback(fallbackResult)
+    setCurrentStep("result")
+    console.log("🔄 [前端] 使用备用评估结果")
+  } finally {
+    setIsEvaluating(false)
+    // 模拟异步推送
+    setTimeout(() => {
+      alert('AI评估报告已生成！请查看结果。');
+    }, 1000);
+  }
+}
+
+const generateFallbackEvaluation = (): QualitativeEvaluationResponse => {
+  const stageSpecificFeedback = {
+    hr: {
+      summary:
+        "你的故事很完整，像是一部制作精良的简历纪录片。但听下来，感觉你像是AI产品的'旁白'，而不是'导演'。我们想听听你当导演时的心路历程。",
+      improvements: [
+        {
+          area: "成为'导演'",
+          suggestion:
+            "别只说'我做了什么'，要说'我为什么这么做'。用具体量化的数据证明你是如何通过技术决策，一步步实现商业目标的。",
+          example:
+            "比如说'将问题解决率从68%提升至85%，通过重新设计推荐算法架构实现，这个决策基于我对用户行为数据的深度分析'",
+        },
+        {
+          area: "突出AI PM独特性",
+          suggestion:
+            "你的介绍里要有AI时代的'关键词'：RAG、AI Agent、多模态交互。更重要，要体现AI产品经理特有的思维模式。",
+          example:
+            "比如'在设计推荐系统时，我需要平衡模型精度与用户体验，最终选择了85%精度的轻量模型，因为响应速度对用户留存的影响更大'",
+        },
+        {
+          area: "量化你的影响力",
+          suggestion: "每个项目都要有具体的数据支撑，让面试官看到你的'导演'能力不是空谈。",
+          example:
+            "不要说'优化了用户体验'，要说'通过A/B测试验证，新的AI交互方式使用户完成率提升了23%，月活跃用户增长15%'",
+        },
+      ],
+    },
+    professional: {
+      summary:
+        "你对技术的理解就像是看了一场精彩的球赛，规则都懂，战术也清楚。但我们想知道你作为教练，是如何制定战术、调整阵容的。",
+      improvements: [
+        {
+          area: "技术翻译官",
+          suggestion:
+            "在阐述技术时，将技术名词转化为业务收益，突出你的'教练'角色。不要只展示技术理解，要展示技术判断。",
+          example:
+            "不要只说'使用RAG技术'，要说'选择RAG而非微调，是因为我们的知识库更新频繁，RAG能降低30%的模型维护成本，同时保持85%的准确率'",
+        },
+        {
+          area: "数据飞轮设计师",
+          suggestion: "AI产品的核心是数据驱动增长，你需要展示如何设计这个增长引擎。",
+          example: "比如'用户每次纠错都会成为训练数据，预计3个月后模型准确率可提升到92%，形成越用越准的正向循环'",
+        },
+        {
+          area: "商业化平衡大师",
+          suggestion: "展示你如何在技术理想与商业现实间找平衡，这是AI PM的核心价值。",
+          example: "当数据科学家要求95%精度时，我会分析：从85%到95%需要额外投入50万，但业务收益只增加8%，ROI不划算",
+        },
+      ],
+    },
+    final: {
+      summary:
+        "你对未来的描绘很宏大，就像一位优秀的航海家描述远方的大陆。但我们想知道，这艘'未来之船'的发动机在哪里，航线图是什么样的？",
+      improvements: [
+        {
+          area: "趋势落地专家",
+          suggestion: "在谈论行业趋势时，将其与具体产品形态和商业模式结合，而非泛泛而谈。要有自己的独特洞察。",
+          example:
+            "不要只说'AI Agent很有前景'，要说'AI Agent在客服场景下可以降低40%人力成本，但目前的技术瓶颈是多轮对话的上下文理解，预计2年内突破'",
+        },
+        {
+          area: "商业模式建筑师",
+          suggestion: "设计商业模式时，要考虑不同客户群体的需求差异和支付能力，展示你的商业敏感度。",
+          example:
+            "中小企业按使用量付费（$0.1/次调用），大企业按年订阅（$50万/年含定制化），这样既保证了现金流又满足了不同需求",
+        },
+        {
+          area: "复杂问题拆解高手",
+          suggestion: "面对复杂场景，要展示结构化思维，用框架来分析问题，而不是凭直觉。",
+          example:
+            "医疗AI的三个维度可以用'技术-体验-合规'框架分析：技术上追求95%精度，体验上设计医生确认机制，合规上建立审计追踪",
+        },
+      ],
+    },
+  }
+
+  const feedback = stageSpecificFeedback[moduleType]
+
+  return {
+    performanceLevel: "良好表现",
+    summary: feedback.summary,
+    strengths: [
+      {
+        area: "表达逻辑",
+        description: "回答结构清晰，能够按照逻辑顺序组织内容，体现了良好的沟通基础。这是成为优秀AI PM的重要基石。",
+      },
+      {
+        area: "学习态度",
+        description: "对AI产品经理角色有基本认知，展现出学习和成长的积极态度。这种开放的心态很难得。",
+      },
+      {
+        area: "专业素养",
+        description: "在回答中体现出对产品工作的基本理解，有一定的专业基础，这进一步提升了基础。",
+      },
+    ],
+    improvements: feedback.improvements,
+    nextSteps: [
+      {
+        focus: "深化AI产品理解",
+        actionable: "每周研读2-3个AI产品的成功案例，特别关注他们如何将技术能力转化为商业价值，建立自己的案例库",
+      },
+      {
+        focus: "建立量化思维",
+        actionable: "在描述任何项目时，都要准备3个关键数据：投入成本、产出效果、时间周期。用数据说话，而不是感觉",
+      },
+      {
+        focus: "实践AI产品设计",
+        actionable: "选择一个你熟悉的产品，设计一个AI功能的完整方案：技术选型、数据获取、用户体验、商业模式",
+      },
+    ],
+    encouragement:
+      "记住，每个优秀的AI产品经理都是从'旁白'开始，逐步成长为'导演'的。你已经有了很好的基础，现在需要的是更多的实战经验和深度思考。继续保持这种学习热情，相信你很快就能从观众席走到导演椅！",
+  }
+}
+
+const restartPractice = () => {
+  setCurrentStep("overview")
+  setCurrentQuestionIndex(0)
+  setAnswers([])
+  setCurrentAnswer("")
+  setFeedback(null)
+  setEvaluationError(null)
+  setStageProgress(0)
+  loadQuestions()
+}
+
+if (isLoadingQuestions) {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+      <Card className="bg-white/80 backdrop-blur-sm border-white/20">
+        <CardContent className="p-8 text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">正在加载题库...</h3>
+          <p className="text-gray-600">从数据库中获取最新的面试题目</p>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+if (questions.length === 0) {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+      <Card className="bg-white/80 backdrop-blur-sm border-white/20">
+        <CardContent className="p-8 text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Target className="w-8 h-8 text-red-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">暂无可用题目</h3>
+          <p className="text-gray-600 mb-4">该阶段的题目正在准备中，请稍后再试</p>
+          <div className="space-y-2">
+            <Button onClick={loadQuestions} className="mr-2">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              重新加载
+            </Button>
+            <Button variant="outline" onClick={onBack}>
+              返回选择
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+return (
+  <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-10">
+      <div className="max-w-4xl mx-auto px-3 sm:px-6 py-2 sm:py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <Button
+              variant="ghost"
+              onClick={onBack}
+              className="text-gray-600 hover:text-gray-900 p-1 sm:p-2"
+              size="sm"
+            >
+              <ArrowLeft className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">返回</span>
+            </Button>
+            <div className="h-4 w-px bg-gray-300 hidden sm:block" />
+            <div className="flex items-center space-x-2">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-br from-blue-600 to-purple-600 rounded flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-xs">F</span>
+              </div>
+              <span className="font-semibold text-gray-900 text-sm sm:text-base">FutureU</span>
+              <IconComponent className="w-4 h-4 text-gray-600 ml-2" />
+              <h1 className="text-sm sm:text-lg font-semibold text-gray-900 truncate">
+                {currentStage.title.split(" - ")[0]}
+              </h1>
+            </div>
+          </div>
+          {currentStep === "answering" && (
+            <div className="flex items-center space-x-2">
+              <div className="text-xs text-gray-600">
+                {currentQuestionIndex + 1}/{questions.length}
+              </div>
+              <div className="flex items-center space-x-1">
+                <Clock className="w-3 h-3 text-orange-500" />
+                <span className={`font-mono text-sm ${timeLeft < 30 ? "text-red-500" : "text-orange-500"}`}>
+                  {formatTime(timeLeft)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto p-3 sm:p-6">
+        {currentStep === "overview" && (
+          <div className="space-y-4 sm:space-y-6">
+            <Card
+              className={`bg-gradient-to-br from-${currentStage.color}-600 via-${currentStage.color}-500 to-purple-600 text-white shadow-2xl border-0`}
+            >
+              <CardContent className="p-4 sm:p-8">
+                <div className="flex flex-col sm:flex-row items-start space-y-3 sm:space-y-0 sm:space-x-6">
+                  <div className="w-10 h-10 sm:w-16 sm:h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg">
+                    <IconComponent className="w-5 h-5 sm:w-8 sm:h-8 text-white" />
+                  </div>
+                  <div className="flex-1 space-y-2 sm:space-y-4">
+                    <h2 className="text-xl sm:text-3xl font-bold text-white">{currentStage.title}</h2>
+                    <p className="text-white/90 text-sm sm:text-lg leading-relaxed">{currentStage.description}</p>
+                    <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-3 sm:mt-6">
+                      <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2 sm:p-3 text-center border border-white/20">
+                        <div className="text-lg sm:text-2xl font-bold text-white">{questions.length}</div>
+                        <div className="text-white/80 text-xs sm:text-sm">随机题目</div>
+                      </div>
+                      <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2 sm:p-3 text-center border border-white/20">
+                        <div className="text-lg sm:text-2xl font-bold text-white">
+                          {Math.ceil(questions.length * 5)}
+                        </div>
+                        <div className="text-white/80 text-xs sm:text-sm">预计分钟</div>
+                      </div>
+                      <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2 sm:p-3 text-center border border-white/20">
+                        <div className="text-lg sm:text-2xl font-bold text-white">{totalQuestionsInStage}</div>
+                        <div className="text-white/80 text-xs sm:text-sm">题库总数</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="grid gap-3 sm:gap-4">
+              {questions.map((question, index) => (
+                <Card key={question.id} className="bg-white/80 backdrop-blur-sm border-white/20">
+                  <CardContent className="p-3 sm:p-6">
+                    <div className="flex items-start space-x-3">
+                      <div
+                        className={`w-6 h-6 sm:w-8 sm:h-8 bg-${currentStage.color}-100 rounded-full flex items-center justify-center flex-shrink-0`}
+                      >
+                        <span className={`text-${currentStage.color}-600 font-bold text-xs sm:text-sm`}>
+                          {index + 1}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm sm:text-lg font-semibold text-gray-900 mb-2">题目预览 {index + 1}</h3>
+                        <p className="text-xs sm:text-base text-gray-600 mb-3 leading-relaxed">
+                          {question.question_text.length > 100
+                            ? question.question_text.substring(0, 100) + "..."
+                            : question.question_text}
+                        </p>
+                        <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
+                          <p className="text-xs sm:text-sm text-gray-700">
+                            <strong>难度：</strong>
+                            {question.difficulty_level || "中等"}
+                            {question.keywords && question.keywords.length > 0 && (
+                              <>
+                                <strong className="ml-4">关键词：</strong>
+                                {question.keywords.slice(0, 3).join(", ")}
+                              </>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <div className="text-center">
+              <Button
+                onClick={startPractice}
+                size="lg"
+                className={`bg-gradient-to-r from-${currentStage.color}-600 to-purple-600 hover:from-${currentStage.color}-700 hover:to-purple-700 text-white px-6 sm:px-8 py-3 w-full sm:w-auto text-sm sm:text-base`}
+              >
+                <Play className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                开始{currentStage.title.split(" - ")[0]}练习
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {currentStep === "answering" && questions[currentQuestionIndex] && (
+          <div className="space-y-4 sm:space-y-6">
+            <Card className="bg-white/80 backdrop-blur-sm border-white/20">
+              <CardHeader className="pb-3 sm:pb-6">
+                <div className="flex items-center justify-between mb-2 sm:mb-4">
+                  <CardTitle className="text-base sm:text-xl text-gray-900">
+                    题目 {currentQuestionIndex + 1}: 面试问题
+                  </CardTitle>
+                  <Badge variant="outline" className="text-xs">
+                    {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, "0")}
+                  </Badge>
+                </div>
+                <Progress value={stageProgress} className="h-1 sm:h-2" />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="bg-blue-50 border-l-4 border-blue-500 p-3 sm:p-4 rounded-r-lg">
+                    <p className="text-sm sm:text-base text-gray-800 leading-relaxed">
+                      {questions[currentQuestionIndex].question_text}
+                    </p>
+                  </div>
+                  {questions[currentQuestionIndex].keywords && questions[currentQuestionIndex].keywords.length > 0 && (
+                    <div className="bg-gray-50 rounded-lg p-3"

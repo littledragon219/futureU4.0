@@ -26,15 +26,23 @@ export default function LandingPage() {
   useEffect(() => {
     const checkUser = async () => {
       try {
+        console.log("🔍 Checking initial user state...")
         const {
           data: { user },
         } = await supabase.auth.getUser()
+        console.log("🔍 Initial user check result:", user)
         if (user) {
-          setUser({ id: user.id, email: user.email || "" })
+          const userState = { id: user.id, email: user.email || "" }
+          console.log("✅ Setting user state:", userState)
+          setUser(userState)
+        } else {
+          console.log("❌ No user found, setting null")
+          setUser(null)
         }
       } catch (error) {
         // 忽略认证错误，允许匿名访问
-        console.log("Auth check failed, continuing with anonymous access")
+        console.log("⚠️ Auth check failed, continuing with anonymous access:", error)
+        setUser(null)
       }
       setIsLoading(false)
     }
@@ -46,10 +54,13 @@ export default function LandingPage() {
       const {
         data: { subscription },
       } = supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log("Auth state changed:", event, session?.user?.email)
+        console.log("🔄 Auth state changed:", event, "User:", session?.user?.email)
         if (session?.user) {
-          setUser({ id: session.user.id, email: session.user.email || "" })
+          const userState = { id: session.user.id, email: session.user.email || "" }
+          console.log("✅ Auth listener setting user state:", userState)
+          setUser(userState)
         } else {
+          console.log("❌ Auth listener clearing user state")
           setUser(null)
         }
         setIsLoading(false)
@@ -58,7 +69,7 @@ export default function LandingPage() {
       return () => subscription.unsubscribe()
     } catch (error) {
       // 忽略认证监听错误
-      console.log("Auth listener setup failed, continuing with anonymous access")
+      console.log("⚠️ Auth listener setup failed, continuing with anonymous access:", error)
       setIsLoading(false)
     }
   }, [])
@@ -139,28 +150,34 @@ export default function LandingPage() {
 
   const handleLogin = async (email: string, password: string) => {
     try {
+      console.log("🔐 Starting login process for:", email)
       const result = await signIn(email, password)
-      console.log("Login result:", result)
-      // 手动检查用户状态
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        setUser({ id: user.id, email: user.email || "" })
+      console.log("🔐 Login result:", result)
+      
+      if (result.user) {
+        setUser({ id: result.user.id, email: result.user.email || "" })
       }
+      setShowAuthModal(false)
+      console.log("✅ Login successful, state updated manually")
     } catch (error: any) {
+      console.error("❌ Login error:", error)
       throw new Error(error.message || "登录失败，请重试")
     }
   }
 
   const handleRegister = async (email: string, password: string, confirmPassword: string) => {
     try {
+      console.log("📝 Starting registration process for:", email)
       const result = await signUp(email, password)
-      console.log("Register result:", result)
-      // 手动检查用户状态
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        setUser({ id: user.id, email: user.email || "" })
+      console.log("📝 Registration result:", result)
+      
+      if (result.user) {
+        setUser({ id: result.user.id, email: result.user.email || "" })
       }
+      setShowAuthModal(false)
+      console.log("✅ Registration successful, state updated manually")
     } catch (error: any) {
+      console.error("❌ Registration error:", error)
       throw new Error(error.message || "注册失败，请重试")
     }
   }
@@ -176,9 +193,12 @@ export default function LandingPage() {
   const handleLogout = async () => {
     try {
       await signOut()
+      setUser(null) // 清除用户状态
       setCurrentView("home")
     } catch (error) {
       console.error("Logout error:", error)
+      // 即使signOut失败，也要清除本地用户状态
+      setUser(null)
     }
   }
 

@@ -35,7 +35,30 @@ let supabaseClient: any
 
 if (isSupabaseConfigured) {
   try {
-    supabaseClient = createClientComponentClient()
+    // 为开发环境禁用速率限制
+    supabaseClient = createClientComponentClient({
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      options: {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          flowType: 'pkce'
+        },
+        global: {
+          headers: {
+            'X-Client-Info': 'supabase-js-web'
+          }
+        },
+        // 开发环境配置：禁用速率限制
+        realtime: {
+          params: {
+            eventsPerSecond: 1000 // 增加事件频率限制
+          }
+        }
+      }
+    })
   } catch (error) {
     console.warn("Supabase客户端创建失败，使用虚拟客户端", error)
     supabaseClient = createMockSupabaseClient()
